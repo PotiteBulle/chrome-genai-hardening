@@ -106,7 +106,7 @@ Cette règle sert à désactiver par défaut certaines fonctionnalités GenAI co
 Clone le dépôt :
 
 ```powershell
-git clone https://github.com/ShadowSc0pe/chrome-genai-hardening.git
+git clone https://github.com/PotiteBulle/chrome-genai-hardening
 cd chrome-genai-hardening
 ```
 
@@ -220,23 +220,23 @@ La suppression des fichiers est donc une étape complémentaire, mais la policy 
 
 Idées d'améliorations possibles :
 
-- ajout d'un mode WhatIf.
-- génération d'un rapport Markdown.
-- export JSON des résultats.
-- détection de Chrome, Edge, Brave et Chromium.
-- vérification automatique des policies après application.
-- ajout d'un mode non destructif.
-- ajout d'un système de sauvegarde du registre avant modification.
+- Ajout d'un mode WhatIf.
+- Génération d'un rapport Markdown.
+- Export JSON des résultats.
+- Détection de Chrome, Edge, Brave et Chromium.
+- Vérification automatique des policies après application.
+- Ajout d'un mode non destructif.
+- Ajout d'un système de sauvegarde du registre avant modification.
 
 ## Limites
 
 Ce script :
 
-- ne bloque pas toutes les fonctionnalités IA côté serveur.
-- ne remplace pas une configuration complète de confidentialité Chrome.
-- dépend du support des policies par la version de Chrome installée.
-- nécessite des droits administrateur.
-- peut devoir être adapté si Google modifie les noms ou chemins des composants.
+- Ne bloque pas toutes les fonctionnalités IA côté serveur.
+- Ne remplace pas une configuration complète de confidentialité Chrome.
+- Dépend du support des policies par la version de Chrome installée.
+- Nécessite des droits administrateur.
+- Peut devoir être adapté si Google modifie les noms ou chemins des composants.
 
 ## Vérifications recommandées
 
