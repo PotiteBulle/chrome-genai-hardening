@@ -20,11 +20,11 @@ Ce projet ne cherche pas à modifier Chrome ni à contourner ses protections. Il
 
 Ce script permet de :
 
-- désactiver le téléchargement du modèle IA local GenAI de Chrome.
-- appliquer des policies Chrome Enterprise via le registre Windows.
-- supprimer les dossiers locaux liés aux modèles IA déjà téléchargés.
-- générer un rapport de vérification.
-- fournir une base propre pour l'audit, le hardening et la documentation sécurité.
+- Désactiver le téléchargement du modèle IA local GenAI de Chrome.
+- Appliquer une policy Chrome Enterprise via le registre Windows.
+- Supprimer les dossiers locaux liés aux modèles IA déjà téléchargés.
+- Générer un rapport de vérification.
+- Fournir une base propre pour l'audit, le hardening et la documentation sécurité.
 
 ## Contexte
 
@@ -32,12 +32,12 @@ Certaines versions récentes de Chrome peuvent télécharger des composants loca
 
 Ces fonctionnalités peuvent être utiles pour certains usages, mais elles peuvent aussi poser des questions de :
 
-- confidentialité.
-- contrôle utilisateurices.
-- surface d'attaque.
-- consommation disque.
-- gouvernance des fonctionnalités IA.
-- conformité dans un environnement professionnel ou personnel durci.
+- Confidentialité.
+- Contrôle utilisateur.
+- Surface d'attaque.
+- Consommation disque.
+- Gouvernance des fonctionnalités IA.
+- Conformité dans un environnement professionnel ou personnel durci.
 
 Ce projet propose une approche défensive et transparente pour désactiver ces fonctionnalités via des mécanismes documentés de configuration locale.
 
@@ -56,40 +56,50 @@ Utilise ce script uniquement sur une machine dont tu es propriétaire ou que tu 
 ```text
 chrome-genai-hardening/
 ├── README.md
-├── LICENSE (MIT)
+├── LICENSE
 ├── .gitignore
 ├── scripts/
 │   ├── Disable-Chrome-GenAI.ps1
 │   └── Restore-Chrome-GenAI.ps1
 ├── docs/
-│   ├── policy-explanation.md
+│   └── policy-explanation.md
 └── reports/
     └── example-report.md
 ```
 
 ## Fonctionnement
 
-Le script principal applique les policies suivantes dans le registre Windows :
+Le script principal applique une policy Chrome Enterprise locale dans le registre Windows :
 
 ```text
 HKLM:\SOFTWARE\Policies\Google\Chrome
 ```
 
-Policy principale :
+Policy appliquée :
 
 ```text
 GenAILocalFoundationalModelSettings = 1
 ```
 
-Cette règle indique à Chrome de ne pas télécharger le modèle IA local.
+Cette règle indique à Chrome de ne pas télécharger le modèle IA local utilisé par certaines fonctionnalités GenAI, notamment Gemini Nano.
 
-Policy complémentaire :
+## Note concernant GenAiDefaultSettings
+
+La policy suivante n'est pas utilisée par ce projet :
 
 ```text
-GenAiDefaultSettings = 2
+GenAiDefaultSettings
 ```
 
-Cette règle sert à désactiver par défaut certaines fonctionnalités GenAI couvertes par les policies Chrome.
+Certaines installations de Chrome peuvent ignorer cette règle lorsqu'elle est configurée localement via le registre Windows. Dans ce cas, Chrome affiche une erreur dans `chrome://policy/` indiquant que la règle est ignorée, car elle n'est pas configurée par une source cloud.
+
+Pour éviter cette erreur, le script utilise uniquement la policy principale :
+
+```text
+GenAILocalFoundationalModelSettings = 1
+```
+
+Le script supprime aussi `GenAiDefaultSettings` si cette ancienne règle est déjà présente sur la machine.
 
 ## Prérequis
 
@@ -127,10 +137,11 @@ Le script va :
 
 1. Vérifier les droits administrateur.
 2. Créer la clé de policy Chrome si elle n'existe pas.
-3. Appliquer les règles de désactivation GenAI.
-4. Rechercher les dossiers locaux liés aux modèles IA.
-5. Supprimer les dossiers trouvés.
-6. Générer un rapport de vérification.
+3. Appliquer la règle de désactivation GenAI.
+4. Supprimer l'ancienne règle `GenAiDefaultSettings` si elle existe.
+5. Rechercher les dossiers locaux liés aux modèles IA.
+6. Supprimer les dossiers trouvés.
+7. Générer un rapport de vérification.
 
 ## Vérification dans Chrome
 
@@ -146,11 +157,22 @@ Clique ensuite sur :
 Reload policies
 ```
 
-Tu dois voir les policies suivantes :
+ou :
+
+```text
+Actualiser les règles
+```
+
+Tu dois voir la policy suivante avec l'état `OK` :
 
 ```text
 GenAILocalFoundationalModelSettings    1
-GenAiDefaultSettings                   2
+```
+
+Tu ne dois plus voir :
+
+```text
+GenAiDefaultSettings
 ```
 
 Tu peux aussi vérifier l'état des modèles locaux via :
@@ -172,7 +194,7 @@ Par défaut, le script génère un rapport dans :
 Ce rapport contient :
 
 - La date d'exécution.
-- Les policies appliquées.
+- La policy appliquée.
 - Les chemins vérifiés.
 - Les actions effectuées.
 - Les étapes de vérification manuelle.
@@ -190,6 +212,15 @@ Tu peux ensuite redémarrer Chrome et vérifier à nouveau :
 ```text
 chrome://policy/
 ```
+
+Le script de restauration supprime :
+
+```text
+GenAILocalFoundationalModelSettings
+GenAiDefaultSettings
+```
+
+La seconde règle est supprimée uniquement par nettoyage, au cas où elle serait encore présente depuis une ancienne version du script.
 
 ## Chemins vérifiés par le script
 
@@ -255,14 +286,14 @@ chrome://flags/
 Dans `chrome://flags/`, tu peux rechercher manuellement :
 
 ```text
-- Gemini
-- GenAI
-- Nano
-- Prompt API
-- Summarization
-- Writer
-- Rewriter
-- Proofreader
+Gemini
+GenAI
+Nano
+Prompt API
+Summarization
+Writer
+Rewriter
+Proofreader
 ```
 
 Et désactiver les flags IA expérimentaux si nécessaire.
@@ -301,5 +332,5 @@ But      : désactiver le modèle IA local GenAI/Gemini Nano de Chrome
 Système  : Windows
 Langage  : PowerShell
 Niveau   : Privacy Hardening
-Action   : policies registre + suppression des modèles locaux + rapport
+Action   : policy registre + suppression des modèles locaux + rapport
 ```
