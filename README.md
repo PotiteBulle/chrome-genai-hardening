@@ -4,7 +4,7 @@ Toolkit PowerShell de durcissement pour Google Chrome sous Windows.
 
 Ce projet permet de désactiver le téléchargement du modèle IA local utilisé par certaines fonctionnalités GenAI de Chrome, notamment Gemini Nano ou les modèles embarqués, via les règles locales Chrome Enterprise.
 
-L'objectif est simple : reprendre le contrôle sur les fonctionnalités IA locales de Chrome, réduire les téléchargements automatiques non souhaités, supprimer les fichiers de modèle déjà présents, et générer un rapport de vérification exploitable dans une démarche Blue Team ou Privacy Hardening.
+L'objectif est simple : reprendre le contrôle sur les fonctionnalités IA locales de Chrome, réduire les téléchargements automatiques non souhaités, supprimer les fichiers de modèle déjà présents, et générer un rapport de vérification exploitable dans une démarche Privacy Hardening.
 
 ## Pourquoi ce projet existe
 
@@ -56,15 +56,13 @@ Utilise ce script uniquement sur une machine dont tu es propriétaire ou que tu 
 ```text
 chrome-genai-hardening/
 ├── README.md
-├── LICENSE
+├── LICENSE (MIT)
 ├── .gitignore
 ├── scripts/
 │   ├── Disable-Chrome-GenAI.ps1
 │   └── Restore-Chrome-GenAI.ps1
 ├── docs/
 │   ├── policy-explanation.md
-│   ├── verification.md
-│   └── screenshots.md
 └── reports/
     └── example-report.md
 ```
@@ -127,12 +125,12 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 
 Le script va :
 
-1. vérifier les droits administrateur.
-2. créer la clé de policy Chrome si elle n'existe pas.
-3. appliquer les règles de désactivation GenAI.
-4. rechercher les dossiers locaux liés aux modèles IA.
-5. supprimer les dossiers trouvés.
-6. générer un rapport de vérification.
+1. Vérifier les droits administrateur.
+2. Créer la clé de policy Chrome si elle n'existe pas.
+3. Appliquer les règles de désactivation GenAI.
+4. Rechercher les dossiers locaux liés aux modèles IA.
+5. Supprimer les dossiers trouvés.
+6. Générer un rapport de vérification.
 
 ## Vérification dans Chrome
 
@@ -173,11 +171,11 @@ Par défaut, le script génère un rapport dans :
 
 Ce rapport contient :
 
-- la date d'exécution.
-- les policies appliquées.
-- les chemins vérifiés.
-- les actions effectuées.
-- les étapes de vérification manuelle.
+- La date d'exécution.
+- Les policies appliquées.
+- Les chemins vérifiés.
+- Les actions effectuées.
+- Les étapes de vérification manuelle.
 
 ## Restauration
 
@@ -257,14 +255,14 @@ chrome://flags/
 Dans `chrome://flags/`, tu peux rechercher manuellement :
 
 ```text
-Gemini
-GenAI
-Nano
-Prompt API
-Summarization
-Writer
-Rewriter
-Proofreader
+- Gemini
+- GenAI
+- Nano
+- Prompt API
+- Summarization
+- Writer
+- Rewriter
+- Proofreader
 ```
 
 Et désactiver les flags IA expérimentaux si nécessaire.
@@ -281,12 +279,12 @@ Les contributions sont les bienvenues.
 
 Tu peux proposer :
 
-- de nouveaux chemins de détection.
-- des améliorations PowerShell.
-- une meilleure documentation.
-- des captures d'écran.
-- des rapports d'exemple.
-- une compatibilité avec d'autres navigateurs Chromium.
+- De nouveaux chemins de détection.
+- Des améliorations PowerShell.
+- Une meilleure documentation.
+- Des captures d'écran.
+- Des rapports d'exemple.
+- Une compatibilité avec d'autres navigateurs Chromium.
 
 ## Licence
 
