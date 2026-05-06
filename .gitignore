@@ -1,0 +1,25 @@
+# PowerShell temporary files
+*.ps1xml
+*.pssc
+*.psd1.bak
+
+# Reports generated locally
+reports/*.txt
+reports/*.json
+reports/*.csv
+
+# Keep example reports
+!reports/example-report.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+
+# Archives
+*.zip
+*.7z
+*.rar
