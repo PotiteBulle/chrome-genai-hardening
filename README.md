@@ -1,10 +1,10 @@
 # Chrome GenAI Hardening
 
-Toolkit PowerShell de durcissement pour Google Chrome sous Windows.
+Toolkit de durcissement pour Google Chrome sur Windows, macOS et Linux.
 
-Ce projet permet de désactiver le téléchargement du modèle IA local utilisé par certaines fonctionnalités GenAI de Chrome, notamment Gemini Nano ou les modèles embarqués. Il permet aussi de désactiver plusieurs intégrations IA de Chrome via les règles locales Chrome Enterprise.
+Ce projet permet de désactiver le téléchargement du modèle IA local utilisé par certaines fonctionnalités GenAI de Chrome, notamment Gemini Nano ou les modèles embarqués. Il permet aussi de désactiver plusieurs intégrations IA de Chrome via les règles locales Chrome Enterprise disponibles selon le système d'exploitation.
 
-L'objectif est simple : reprendre le contrôle sur les fonctionnalités IA de Chrome, réduire les téléchargements automatiques non souhaités, limiter les intégrations IA côté navigateur, supprimer les fichiers de modèle déjà présents et générer un rapport de vérification exploitable dans une démarche Privacy Hardening.
+L'objectif est simple : reprendre le contrôle sur les fonctionnalités IA de Chrome, réduire les téléchargements automatiques non souhaités, limiter les intégrations IA côté navigateur, supprimer les fichiers de modèles déjà présents et générer des rapports de vérification exploitables dans une démarche Privacy Hardening.
 
 ## Pourquoi ce projet existe
 
@@ -12,7 +12,7 @@ Ce projet a été créé après la lecture de l'article suivant :
 
 https://www.thatprivacyguy.com/blog/chrome-silent-nano-install/
 
-L'article explique que Chrome peut télécharger localement un modèle IA de grande taille lié à Gemini Nano / GenAI. Ce dépôt propose une réponse défensive, documentée et réversible : utiliser les policies Chrome Enterprise disponibles sous Windows pour empêcher le téléchargement du modèle local, puis nettoyer les artefacts déjà présents.
+L'article explique que Chrome peut télécharger localement un modèle IA de grande taille lié à Gemini Nano / GenAI. Ce dépôt propose une réponse défensive, documentée et réversible : utiliser les policies Chrome Enterprise disponibles localement pour empêcher le téléchargement du modèle local, puis nettoyer les artefacts déjà présents.
 
 Le projet a ensuite été étendu pour désactiver d'autres fonctionnalités IA intégrées à Chrome, comme Gemini, AI Mode, Help Me Write, History Search, Create Themes, DevTools GenAI et certaines fonctions de partage de contenu avec les services IA.
 
@@ -24,26 +24,29 @@ Ce toolkit permet de :
 
 - Désactiver le téléchargement du modèle IA local GenAI / Gemini Nano de Chrome.
 - Désactiver plusieurs fonctionnalités IA intégrées à Chrome.
-- Appliquer des policies Chrome Enterprise via le registre Windows.
+- Appliquer des policies Chrome Enterprise selon le système utilisé.
 - Supprimer les dossiers locaux liés aux modèles IA déjà téléchargés.
 - Nettoyer certaines anciennes règles pouvant provoquer des erreurs dans `chrome://policy/`.
-- Générer un rapport de vérification.
+- Générer des rapports de vérification.
 - Fournir une base propre pour l'audit, le hardening et la documentation sécurité.
 
-## Contexte
+## Systèmes supportés
 
-Certaines versions récentes de Chrome peuvent télécharger des composants locaux liés aux fonctionnalités d'intelligence artificielle, comme Gemini Nano ou des modèles utilisés par les API IA intégrées.
+Le projet vise trois plateformes :
 
-Ces fonctionnalités peuvent être utiles pour certains usages, mais elles peuvent aussi poser des questions de :
+```text
+Windows
+macOS
+Linux
+```
 
-- Confidentialité.
-- Contrôle utilisateur.
-- Surface d'attaque.
-- Consommation disque.
-- Gouvernance des fonctionnalités IA.
-- Conformité dans un environnement professionnel ou personnel durci.
+Chaque système utilise une méthode différente pour appliquer les policies Chrome.
 
-Ce projet propose une approche défensive et transparente pour désactiver ces fonctionnalités via des mécanismes documentés de configuration locale.
+```text
+Windows : registre Windows
+macOS   : fichier plist
+Linux   : fichier JSON de policies managed
+```
 
 ## Avertissement
 
@@ -51,11 +54,11 @@ Ce projet est destiné au durcissement de la vie privée, à l'administration sy
 
 Il ne modifie pas les binaires de Chrome, ne contourne pas de mécanisme de sécurité et n'effectue aucune action offensive.
 
-Le script applique uniquement des règles locales Windows / Chrome Enterprise et supprime des fichiers de modèle locaux lorsque ceux-ci sont présents.
+Les scripts appliquent uniquement des règles locales Chrome Enterprise et suppriment des fichiers de modèle locaux lorsque ceux-ci sont présents.
 
-Utilise ce script uniquement sur une machine dont tu es propriétaire ou que tu es autorisé à administrer.
+Utilise ces scripts uniquement sur une machine dont tu es propriétaire ou que tu es autorisé à administrer.
 
-## Arborescence
+## Arborescence recommandée
 
 ```text
 chrome-genai-hardening/
@@ -63,86 +66,61 @@ chrome-genai-hardening/
 ├── LICENSE
 ├── .gitignore
 ├── scripts/
-│   ├── Disable-Chrome-GenAI.ps1
-│   ├── Disable-Chrome-AI-Features.ps1
-│   └── Restore-Chrome-GenAI.ps1
+│   ├── windows/
+│   │   ├── Disable-Chrome-GenAI.ps1
+│   │   ├── Disable-Chrome-AI-Features.ps1
+│   │   └── Restore-Chrome-GenAI.ps1
+│   ├── macos/
+│   │   ├── Disable-Chrome-GenAI-macOS.sh
+│   │   ├── Disable-Chrome-AI-Features-macOS.sh
+│   │   └── Restore-Chrome-GenAI-macOS.sh
+│   └── linux/
+│       ├── Disable-Chrome-GenAI-linux.sh
+│       ├── Disable-Chrome-AI-Features-linux.sh
+│       └── Restore-Chrome-GenAI-linux.sh
 ├── docs/
-│   └── policy-explanation.md
+│   ├── policy-explanation.md
+│   ├── verification.md
+│   └── screenshots.md
 └── reports/
     └── example-report.md
 ```
 
 ## Scripts disponibles
 
-### Disable-Chrome-GenAI.ps1
+### Mode ciblé
 
-Script ciblé sur le modèle IA local.
+Le mode ciblé désactive principalement le modèle IA local GenAI / Gemini Nano.
 
-Il applique la policy suivante :
+Scripts concernés :
+
+```text
+scripts/windows/Disable-Chrome-GenAI.ps1
+scripts/macos/Disable-Chrome-GenAI-macOS.sh
+scripts/linux/Disable-Chrome-GenAI-linux.sh
+```
+
+Policy principale appliquée :
 
 ```text
 GenAILocalFoundationalModelSettings = 1
 ```
 
-Cette règle indique à Chrome de ne pas télécharger le modèle IA local utilisé par certaines fonctionnalités GenAI, notamment Gemini Nano.
+Cette règle indique à Chrome de ne pas télécharger le modèle IA local utilisé par certaines fonctionnalités GenAI.
 
-Ce script supprime aussi certains dossiers locaux liés aux modèles IA si ceux-ci sont présents.
+### Mode renforcé
 
-### Disable-Chrome-AI-Features.ps1
+Le mode renforcé désactive un maximum de fonctionnalités IA intégrées à Chrome côté navigateur.
 
-Script renforcé pour désactiver un maximum de fonctionnalités IA intégrées à Chrome.
-
-Il applique plusieurs policies Chrome Enterprise locales, dont :
+Scripts concernés :
 
 ```text
-AIModeSettings = 1
-CreateThemesSettings = 2
-DevToolsGenAiSettings = 2
-GeminiActOnWebSettings = 1
-GeminiSettings = 1
-GenAILocalFoundationalModelSettings = 1
-HelpMeWriteSettings = 2
-HistorySearchSettings = 2
-SearchContentSharingSettings = 1
+scripts/windows/Disable-Chrome-AI-Features.ps1
+scripts/macos/Disable-Chrome-AI-Features-macOS.sh
+scripts/linux/Disable-Chrome-AI-Features-linux.sh
 ```
 
-Ce script est destiné aux personnes qui ne veulent pas d'intégrations IA dans Chrome côté navigateur.
-
-### Restore-Chrome-GenAI.ps1
-
-Script de restauration.
-
-Il supprime les policies appliquées par les scripts de durcissement afin de revenir au comportement par défaut de Chrome.
-
-## Fonctionnement
-
-Les scripts appliquent des policies Chrome Enterprise locales dans le registre Windows :
-
-```text
-HKLM:\SOFTWARE\Policies\Google\Chrome
-```
-
-Ces règles sont ensuite visibles dans Chrome via :
-
-```text
-chrome://policy/
-```
-
-Après application, il faut cliquer sur :
-
-```text
-Reload policies
-```
-
-ou :
-
-```text
-Actualiser les règles
-```
-
-## Policies utilisées par le mode renforcé
-
-Le mode renforcé applique les règles suivantes :
+Policies appliquées par le mode renforcé :
 
 ```text
 AIModeSettings                       = 1
@@ -156,7 +134,63 @@ HistorySearchSettings                = 2
 SearchContentSharingSettings         = 1
 ```
 
-Sur une machine de test, ces policies ont été validées dans `chrome://policy/` avec l'état `OK`.
+### Mode restauration
+
+Le mode restauration supprime les policies appliquées par le projet afin de revenir au comportement par défaut de Chrome.
+
+Scripts concernés :
+
+```text
+scripts/windows/Restore-Chrome-GenAI.ps1
+scripts/macos/Restore-Chrome-GenAI-macOS.sh
+scripts/linux/Restore-Chrome-GenAI-linux.sh
+```
+
+## Fonctionnement par système
+
+### Windows
+
+Sur Windows, les policies sont appliquées dans le registre :
+
+```text
+HKLM:\SOFTWARE\Policies\Google\Chrome
+```
+
+Les scripts doivent être lancés dans PowerShell en administrateurice.
+
+### macOS
+
+Sur macOS, les policies sont appliquées via un fichier plist :
+
+```text
+/Library/Managed Preferences/com.google.Chrome.plist
+```
+
+Les scripts doivent être lancés avec `sudo`.
+
+### Linux
+
+Sur Linux, les policies sont appliquées via un fichier JSON dans le dossier des policies managed de Chrome :
+
+```text
+/etc/opt/chrome/policies/managed/chrome-genai-hardening.json
+```
+
+Les scripts doivent être lancés avec `sudo`.
+
+Selon la distribution ou le type de paquet Chrome installé, certains chemins peuvent varier. Pour Google Chrome stable installé depuis le paquet officiel, le chemin recommandé est généralement :
+
+```text
+/etc/opt/chrome/policies/managed/
+```
+
+Pour Chromium, le chemin peut être différent, par exemple :
+
+```text
+/etc/chromium/policies/managed/
+```
+
+Ce projet cible prioritairement Google Chrome.
 
 ## Note concernant GenAiDefaultSettings
 
@@ -166,7 +200,7 @@ La policy suivante n'est pas utilisée par ce projet :
 GenAiDefaultSettings
 ```
 
-Certaines installations de Chrome peuvent ignorer cette règle lorsqu'elle est configurée localement via le registre Windows. Dans ce cas, Chrome affiche une erreur dans `chrome://policy/` indiquant que la règle est ignorée, car elle n'est pas configurée par une source cloud.
+Certaines installations de Chrome peuvent ignorer cette règle lorsqu'elle est configurée localement. Dans ce cas, Chrome peut afficher une erreur dans `chrome://policy/` indiquant que la règle est ignorée, car elle n'est pas configurée par une source cloud.
 
 Pour éviter cette erreur, le projet n'utilise pas `GenAiDefaultSettings`.
 
@@ -174,60 +208,128 @@ Les scripts peuvent toutefois supprimer cette ancienne règle si elle est déjà
 
 ## Prérequis
 
+### Windows
+
 - Windows 10 ou Windows 11.
 - Google Chrome installé.
 - PowerShell.
 - Droits administrateurice.
-- Accès au registre Windows.
+
+### macOS
+
+- macOS.
+- Google Chrome installé.
+- Terminal.
+- Droits administrateur avec `sudo`.
+
+### Linux
+
+- Distribution Linux avec Google Chrome installé.
+- Shell Bash.
+- Droits administrateurice avec `sudo`.
+- Accès au dossier `/etc/opt/chrome/policies/managed/`.
 
 ## Installation
 
 Clone le dépôt :
 
-```powershell
+```bash
 git clone https://github.com/PotiteBulle/chrome-genai-hardening
 cd chrome-genai-hardening
 ```
 
-Ou télécharge simplement les scripts depuis le dossier :
+## Utilisation sur Windows
 
-```text
-scripts/
-```
-
-## Utilisation du mode ciblé
+### Mode ciblé
 
 Ouvre PowerShell en administrateurice, puis exécute :
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\Disable-Chrome-GenAI.ps1
+.\scripts\windows\Disable-Chrome-GenAI.ps1
 ```
 
-Ce mode cible principalement le modèle IA local GenAI / Gemini Nano.
-
-## Utilisation du mode renforcé
+### Mode renforcé
 
 Ouvre PowerShell en administrateurice, puis exécute :
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\Disable-Chrome-AI-Features.ps1
+.\scripts\windows\Disable-Chrome-AI-Features.ps1
 ```
 
-Ce mode désactive plusieurs fonctionnalités IA intégrées à Chrome.
+### Restauration
 
-Il est recommandé si l'objectif est de réduire au maximum les fonctionnalités IA côté navigateur.
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\scripts\windows\Restore-Chrome-GenAI.ps1
+```
+
+## Utilisation sur macOS
+
+### Mode ciblé
+
+```bash
+chmod +x scripts/macos/Disable-Chrome-GenAI-macOS.sh
+sudo ./scripts/macos/Disable-Chrome-GenAI-macOS.sh
+```
+
+### Mode renforcé
+
+```bash
+chmod +x scripts/macos/Disable-Chrome-AI-Features-macOS.sh
+sudo ./scripts/macos/Disable-Chrome-AI-Features-macOS.sh
+```
+
+### Restauration
+
+```bash
+chmod +x scripts/macos/Restore-Chrome-GenAI-macOS.sh
+sudo ./scripts/macos/Restore-Chrome-GenAI-macOS.sh
+```
+
+Après exécution, ferme complètement Chrome :
+
+```bash
+osascript -e 'quit app "Google Chrome"'
+```
+
+Puis relance Chrome.
+
+## Utilisation sur Linux
+
+### Mode ciblé
+
+```bash
+chmod +x scripts/linux/Disable-Chrome-GenAI-linux.sh
+sudo ./scripts/linux/Disable-Chrome-GenAI-linux.sh
+```
+
+### Mode renforcé
+
+```bash
+chmod +x scripts/linux/Disable-Chrome-AI-Features-linux.sh
+sudo ./scripts/linux/Disable-Chrome-AI-Features-linux.sh
+```
+
+### Restauration
+
+```bash
+chmod +x scripts/linux/Restore-Chrome-GenAI-linux.sh
+sudo ./scripts/linux/Restore-Chrome-GenAI-linux.sh
+```
+
+Après exécution, ferme complètement Chrome puis relance-le.
 
 ## Ce que fait le mode renforcé
 
 Le script renforcé va :
 
 1. Vérifier les droits administrateurice.
-2. Créer la clé de policy Chrome si elle n'existe pas.
+2. Créer le dossier de policies si nécessaire.
 3. Appliquer plusieurs policies IA Chrome Enterprise.
 4. Appliquer `GenAILocalFoundationalModelSettings = 1`.
-5. Supprimer l'ancienne règle `GenAiDefaultSettings` si elle existe.
+5. Supprimer ou éviter l'ancienne règle `GenAiDefaultSettings`.
 6. Rechercher les dossiers locaux liés aux modèles IA.
 7. Supprimer les dossiers trouvés.
 8. Générer un rapport de vérification.
@@ -290,20 +392,26 @@ enabled by enterprise policy: false
 
 Cela indique que le modèle GenAI local n'est pas utilisable par Chrome et que le durcissement est bien appliqué.
 
-## Rapport généré
+## Rapports générés
 
-Par défaut, les scripts génèrent un rapport dans :
+Par défaut, les scripts génèrent des rapports dans :
 
 ```text
-.\reports\
+./reports/
 ```
 
-Exemples de rapports possibles :
+Exemples :
 
 ```text
-.\reports\chrome-genai-policy-check.txt
-.\reports\chrome-no-ai-hardening-report.txt
-.\reports\chrome-genai-restore-report.txt
+./reports/chrome-genai-policy-check.txt
+./reports/chrome-no-ai-hardening-report.txt
+./reports/chrome-genai-restore-report.txt
+./reports/chrome-genai-policy-check-macos.txt
+./reports/chrome-no-ai-hardening-report-macos.txt
+./reports/chrome-genai-restore-report-macos.txt
+./reports/chrome-genai-policy-check-linux.txt
+./reports/chrome-no-ai-hardening-report-linux.txt
+./reports/chrome-genai-restore-report-linux.txt
 ```
 
 Les rapports peuvent contenir :
@@ -315,46 +423,37 @@ Les rapports peuvent contenir :
 - Les dossiers supprimés ou absents.
 - Les étapes de vérification manuelle.
 
-## Restauration
+## Chemins de modèles vérifiés
 
-Si tu veux réactiver le comportement par défaut de Chrome, exécute PowerShell en administrateur puis lance :
-
-```powershell
-.\scripts\Restore-Chrome-GenAI.ps1
-```
-
-Tu peux ensuite redémarrer Chrome et vérifier à nouveau :
-
-```text
-chrome://policy/
-```
-
-Le script de restauration supprime les policies appliquées par le projet, notamment :
-
-```text
-AIModeSettings
-CreateThemesSettings
-DevToolsGenAiSettings
-GeminiActOnWebSettings
-GeminiSettings
-GenAILocalFoundationalModelSettings
-HelpMeWriteSettings
-HistorySearchSettings
-SearchContentSharingSettings
-GenAiDefaultSettings
-```
-
-`GenAiDefaultSettings` est supprimée uniquement par nettoyage, au cas où elle serait encore présente depuis une ancienne version du script.
-
-## Chemins vérifiés par les scripts
-
-Les scripts peuvent rechercher et supprimer les dossiers suivants s'ils sont présents :
+### Windows
 
 ```text
 %LOCALAPPDATA%\Google\Chrome\User Data\OptGuideOnDeviceModel
 %LOCALAPPDATA%\Google\Chrome\OptGuideOnDeviceModel
 %LOCALAPPDATA%\Google\Chrome\User Data\OptimizationGuideModelStore
 %LOCALAPPDATA%\Google\Chrome\User Data\OptimizationGuidePredictionModels
+```
+
+### macOS
+
+```text
+~/Library/Application Support/Google/Chrome/OptGuideOnDeviceModel
+~/Library/Application Support/Google/Chrome/OptimizationGuideModelStore
+~/Library/Application Support/Google/Chrome/OptimizationGuidePredictionModels
+~/Library/Application Support/Google/Chrome/User Data/OptGuideOnDeviceModel
+~/Library/Application Support/Google/Chrome/User Data/OptimizationGuideModelStore
+~/Library/Application Support/Google/Chrome/User Data/OptimizationGuidePredictionModels
+```
+
+### Linux
+
+```text
+~/.config/google-chrome/OptGuideOnDeviceModel
+~/.config/google-chrome/OptimizationGuideModelStore
+~/.config/google-chrome/OptimizationGuidePredictionModels
+~/.config/google-chrome/User Data/OptGuideOnDeviceModel
+~/.config/google-chrome/User Data/OptimizationGuideModelStore
+~/.config/google-chrome/User Data/OptimizationGuidePredictionModels
 ```
 
 Ces chemins peuvent évoluer selon les versions de Chrome.
@@ -379,6 +478,7 @@ Par exemple :
 - Un moteur de recherche peut afficher des résultats ou résumés IA côté serveur.
 - Une extension installée peut utiliser ses propres fonctionnalités IA.
 - Google peut modifier ou ajouter des policies dans de futures versions de Chrome.
+- Certaines policies peuvent dépendre de la version de Chrome installée.
 
 Ce projet ne remplace pas une configuration complète de confidentialité du navigateur.
 
@@ -415,21 +515,23 @@ Et désactiver les flags IA expérimentaux si nécessaire.
 
 ## Validation
 
-Validation effectuée sur une machine personnelle : les policies Chrome liées aux fonctionnalités IA sont bien appliquées en état `OK` dans `chrome://policy/`.
+Validation effectuée sur une machine personnelle Windows : les policies Chrome liées aux fonctionnalités IA sont bien appliquées en état `OK` dans `chrome://policy/`.
 
 Le script désactive le modèle GenAI local ainsi que plusieurs intégrations IA de Chrome, dont Gemini, AI Mode, Help Me Write, History Search, Create Themes, DevTools GenAI et Search Content Sharing.
 
 Le modèle local peut également être vérifié dans `chrome://on-device-internals/`, où il doit apparaître comme inéligible ou absent.
+
+Les versions macOS et Linux doivent être vérifiées de la même manière avec `chrome://policy/` et `chrome://on-device-internals/`.
 
 ## Améliorations possibles
 
 Idées d'améliorations possibles :
 
 - Ajout d'un mode WhatIf.
-- Détection de Chrome, Edge, Brave et Chromium.
 - Vérification automatique des policies après application.
-- Ajout d'un mode non destructif.
-- Ajout d'un système de sauvegarde du registre avant modification.
+- Ajout d'un système de sauvegarde avant modification.
+- Ajout d'un tableau de compatibilité par version de Chrome.
+- Ajout d'un support spécifique pour Chromium.
 
 ## Sources
 
@@ -445,11 +547,13 @@ Tu peux proposer :
 
 - De nouveaux chemins de détection.
 - Des améliorations PowerShell.
+- Des améliorations Bash.
 - Une meilleure documentation.
 - Des captures d'écran.
 - Des rapports d'exemple.
 - Une compatibilité avec d'autres navigateurs Chromium.
 - Des tests sur différentes versions de Chrome.
+- Des tests sur Windows, macOS et Linux.
 
 ## Licence
 
@@ -457,14 +561,14 @@ Projet sous licence MIT.
 
 ## Auteurice
 
-Projet créé par Potate_bulle dans une démarche de privacy hardening et d'administration Windows défensive.
+Projet créé par Potate_bulle dans une démarche de privacy hardening et d'administration Windows, macOS et Linux défensive.
 
 ## Résumé rapide
 
 ```text
 But      : désactiver les fonctionnalités IA intégrées à Chrome
-Système  : Windows
-Langage  : PowerShell
+Systèmes : Windows, macOS, Linux
+Langages : PowerShell, Bash
 Niveau   : Privacy Hardening
-Action   : policies registre + suppression des modèles locaux + rapport
+Action   : policies locales + suppression des modèles locaux + rapports
 ```
