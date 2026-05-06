@@ -1,14 +1,16 @@
 <#
 .SYNOPSIS
-    Supprime les policies appliquees par Disable-Chrome-GenAI.ps1.
+    Restaure le comportement par défaut de Chrome pour la policy GenAI locale.
 
 .DESCRIPTION
-    Ce script restaure le comportement par defaut de Chrome en supprimant les valeurs registre
-    utilisees pour bloquer le modele IA local GenAI. Il ne retelecharge rien et ne force pas
-    l'activation des fonctionnalites IA.
+    Ce script supprime la policy GenAILocalFoundationalModelSettings appliquée
+    par le script Disable-Chrome-GenAI.ps1.
+
+    Il supprime aussi GenAiDefaultSettings si elle existe encore, afin de nettoyer
+    une ancienne configuration qui pouvait provoquer une erreur dans chrome://policy/.
 
 .NOTES
-    Execution recommandee : PowerShell en administrateurice.
+    À exécuter dans PowerShell en administrateur.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true)]
@@ -16,80 +18,108 @@ param(
     [string]$ReportDirectory = ".\reports"
 )
 
-function Test-IsAdministrator {
-    $CurrentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $Principal = New-Object Security.Principal.WindowsPrincipal($CurrentIdentity)
+function Test-Administrateur {
+    $Identite = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $Principal = New-Object Security.Principal.WindowsPrincipal($Identite)
+
     return $Principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Write-Status {
+function Ecrire-Statut {
     param(
         [string]$Message,
-        [string]$Level = "INFO"
+        [string]$Niveau = "INFO"
     )
 
-    switch ($Level) {
-        "OK"    { Write-Host "[OK] $Message" -ForegroundColor Green }
-        "WARN"  { Write-Host "[WARN] $Message" -ForegroundColor Yellow }
-        "ERROR" { Write-Host "[ERROR] $Message" -ForegroundColor Red }
-        default { Write-Host "[INFO] $Message" -ForegroundColor Cyan }
+    switch ($Niveau) {
+        "OK" {
+            Write-Host "[OK] $Message" -ForegroundColor Green
+        }
+        "AVERTISSEMENT" {
+            Write-Host "[AVERTISSEMENT] $Message" -ForegroundColor Yellow
+        }
+        "ERREUR" {
+            Write-Host "[ERREUR] $Message" -ForegroundColor Red
+        }
+        default {
+            Write-Host "[INFO] $Message" -ForegroundColor Cyan
+        }
     }
 }
 
-if (-not (Test-IsAdministrator)) {
-    Write-Status "Lance ce script en PowerShell administrateurice." "ERROR"
+if (-not (Test-Administrateur)) {
+    Ecrire-Statut "Ce script doit être lancé dans PowerShell en administrateur." "ERREUR"
     exit 1
 }
 
-$ChromePolicyPath = "HKLM:\SOFTWARE\Policies\Google\Chrome"
-$Removed = New-Object System.Collections.Generic.List[string]
+$CheminPolicyChrome = "HKLM:\SOFTWARE\Policies\Google\Chrome"
+$Actions = New-Object System.Collections.Generic.List[string]
 
-if (Test-Path $ChromePolicyPath) {
-    foreach ($Name in @("GenAILocalFoundationalModelSettings", "GenAiDefaultSettings")) {
-        $Property = Get-ItemProperty -Path $ChromePolicyPath -Name $Name -ErrorAction SilentlyContinue
+Ecrire-Statut "Démarrage de la restauration Chrome GenAI."
 
-        if ($null -ne $Property) {
-            if ($PSCmdlet.ShouldProcess("$ChromePolicyPath\$Name", "Supprimer la policy")) {
-                Remove-ItemProperty -Path $ChromePolicyPath -Name $Name -ErrorAction SilentlyContinue
-                Write-Status "Policy supprimee : $Name" "OK"
-                $Removed.Add("Supprimee : $Name")
+if (Test-Path $CheminPolicyChrome) {
+    $ReglesASupprimer = @(
+        "GenAILocalFoundationalModelSettings",
+        "GenAiDefaultSettings"
+    )
+
+    foreach ($Regle in $ReglesASupprimer) {
+        $RegleExiste = Get-ItemProperty `
+            -Path $CheminPolicyChrome `
+            -Name $Regle `
+            -ErrorAction SilentlyContinue
+
+        if ($null -ne $RegleExiste) {
+            if ($PSCmdlet.ShouldProcess($CheminPolicyChrome, "Supprimer la règle $Regle")) {
+                Remove-ItemProperty `
+                    -Path $CheminPolicyChrome `
+                    -Name $Regle `
+                    -ErrorAction SilentlyContinue
+
+                Ecrire-Statut "Règle supprimée : $Regle" "OK"
+                $Actions.Add("Supprimée : $Regle")
             }
         }
         else {
-            Write-Status "Policy absente : $Name"
-            $Removed.Add("Absente : $Name")
+            Ecrire-Statut "Règle absente : $Regle"
+            $Actions.Add("Absente : $Regle")
         }
     }
 }
 else {
-    Write-Status "Cle Chrome Policy absente : $ChromePolicyPath" "WARN"
-    $Removed.Add("Cle absente : $ChromePolicyPath")
+    Ecrire-Statut "Clé Chrome Policy absente : $CheminPolicyChrome" "AVERTISSEMENT"
+    $Actions.Add("Clé absente : $CheminPolicyChrome")
 }
 
 if (-not (Test-Path $ReportDirectory)) {
     New-Item -Path $ReportDirectory -ItemType Directory -Force | Out-Null
 }
 
-$ReportPath = Join-Path $ReportDirectory "chrome-genai-restore-report.txt"
+$CheminRapport = Join-Path $ReportDirectory "chrome-genai-restore-report.txt"
 
-$Report = @"
+$Rapport = @"
 Rapport - Restauration Chrome GenAI
 Date : $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
 Chemin registre :
-$ChromePolicyPath
+$CheminPolicyChrome
 
-Actions effectuees :
-$($Removed -join "`r`n")
+Actions effectuées :
+$($Actions -join "`r`n")
 
-Verification manuelle :
-1. Redemarrer Chrome.
+Vérification manuelle :
+1. Redémarrer Chrome.
 2. Aller sur chrome://policy/.
-3. Cliquer sur Reload policies.
-4. Verifier que les policies supprimees ne sont plus appliquees.
+3. Cliquer sur Reload policies ou Actualiser les règles.
+4. Vérifier que GenAILocalFoundationalModelSettings n'est plus appliquée.
+5. Vérifier que GenAiDefaultSettings n'apparaît plus.
+
+Note :
+Ce script ne télécharge rien et ne force aucune fonctionnalité IA.
+Il supprime uniquement les policies locales appliquées par le projet.
 "@
 
-$Report | Out-File -FilePath $ReportPath -Encoding UTF8
+$Rapport | Out-File -FilePath $CheminRapport -Encoding UTF8
 
-Write-Status "Rapport genere : $ReportPath" "OK"
-Write-Status "Redemarre Chrome puis verifie chrome://policy/."
+Ecrire-Statut "Rapport généré : $CheminRapport" "OK"
+Ecrire-Statut "Redémarre Chrome puis vérifie chrome://policy/."

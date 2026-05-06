@@ -1,14 +1,20 @@
 <#
 .SYNOPSIS
-    Desactive le telechargement du modele IA local GenAI/Gemini Nano de Chrome.
+    Désactive le téléchargement du modèle IA local GenAI / Gemini Nano de Chrome.
 
 .DESCRIPTION
-    Ce script applique des policies Chrome Enterprise via le registre Windows afin de limiter
-    le telechargement du modele IA local GenAI. Il recherche aussi certains dossiers locaux
-    lies aux modeles IA et les supprime lorsqu'ils sont presents.
+    Ce script applique une policy Chrome Enterprise locale via le registre Windows.
+    La règle utilisée est GenAILocalFoundationalModelSettings = 1.
+
+    Cette règle demande à Chrome de ne pas télécharger le modèle IA local utilisé
+    par certaines fonctionnalités GenAI, notamment Gemini Nano.
+
+    Le script supprime aussi l'ancienne règle GenAiDefaultSettings si elle existe,
+    car certaines versions de Chrome l'ignorent lorsqu'elle n'est pas configurée
+    depuis une source cloud.
 
 .NOTES
-    Execution recommandee : PowerShell en administrateurice.
+    À exécuter dans PowerShell en administrateur.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true)]
@@ -16,65 +22,86 @@ param(
     [string]$ReportDirectory = ".\reports"
 )
 
-function Test-IsAdministrator {
-    $CurrentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $Principal = New-Object Security.Principal.WindowsPrincipal($CurrentIdentity)
+function Test-Administrateur {
+    $Identite = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $Principal = New-Object Security.Principal.WindowsPrincipal($Identite)
+
     return $Principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Write-Status {
+function Ecrire-Statut {
     param(
         [string]$Message,
-        [string]$Level = "INFO"
+        [string]$Niveau = "INFO"
     )
 
-    switch ($Level) {
-        "OK"    { Write-Host "[OK] $Message" -ForegroundColor Green }
-        "WARN"  { Write-Host "[WARN] $Message" -ForegroundColor Yellow }
-        "ERROR" { Write-Host "[ERROR] $Message" -ForegroundColor Red }
-        default { Write-Host "[INFO] $Message" -ForegroundColor Cyan }
+    switch ($Niveau) {
+        "OK" {
+            Write-Host "[OK] $Message" -ForegroundColor Green
+        }
+        "AVERTISSEMENT" {
+            Write-Host "[AVERTISSEMENT] $Message" -ForegroundColor Yellow
+        }
+        "ERREUR" {
+            Write-Host "[ERREUR] $Message" -ForegroundColor Red
+        }
+        default {
+            Write-Host "[INFO] $Message" -ForegroundColor Cyan
+        }
     }
 }
 
-if (-not (Test-IsAdministrator)) {
-    Write-Status "Lance ce script en PowerShell administrateurice." "ERROR"
+if (-not (Test-Administrateur)) {
+    Ecrire-Statut "Ce script doit être lancé dans PowerShell en administrateur." "ERREUR"
     exit 1
 }
 
-Write-Status "Demarrage du durcissement Chrome GenAI."
+Ecrire-Statut "Démarrage du durcissement Chrome GenAI."
 
-$ChromePolicyPath = "HKLM:\SOFTWARE\Policies\Google\Chrome"
+$CheminPolicyChrome = "HKLM:\SOFTWARE\Policies\Google\Chrome"
 
-if (-not (Test-Path $ChromePolicyPath)) {
-    if ($PSCmdlet.ShouldProcess($ChromePolicyPath, "Creer la cle registre Chrome Policy")) {
-        New-Item -Path $ChromePolicyPath -Force | Out-Null
-        Write-Status "Cle registre creee : $ChromePolicyPath" "OK"
+if (-not (Test-Path $CheminPolicyChrome)) {
+    if ($PSCmdlet.ShouldProcess($CheminPolicyChrome, "Créer la clé de registre Chrome Policy")) {
+        New-Item -Path $CheminPolicyChrome -Force | Out-Null
+        Ecrire-Statut "Clé de registre créée : $CheminPolicyChrome" "OK"
     }
 }
 
-if ($PSCmdlet.ShouldProcess($ChromePolicyPath, "Appliquer GenAILocalFoundationalModelSettings = 1")) {
+if ($PSCmdlet.ShouldProcess($CheminPolicyChrome, "Appliquer GenAILocalFoundationalModelSettings = 1")) {
     New-ItemProperty `
-        -Path $ChromePolicyPath `
+        -Path $CheminPolicyChrome `
         -Name "GenAILocalFoundationalModelSettings" `
         -PropertyType DWord `
         -Value 1 `
         -Force | Out-Null
 
-    Write-Status "Policy appliquee : GenAILocalFoundationalModelSettings = 1" "OK"
+    Ecrire-Statut "Policy appliquée : GenAILocalFoundationalModelSettings = 1" "OK"
 }
 
-if ($PSCmdlet.ShouldProcess($ChromePolicyPath, "Appliquer GenAiDefaultSettings = 2")) {
-    New-ItemProperty `
-        -Path $ChromePolicyPath `
-        -Name "GenAiDefaultSettings" `
-        -PropertyType DWord `
-        -Value 2 `
-        -Force | Out-Null
+# Nettoyage de l'ancienne règle complémentaire si elle existe.
+# Cette règle peut générer une erreur dans chrome://policy/ lorsqu'elle n'est pas fournie par une source cloud.
+$AncienneRegle = "GenAiDefaultSettings"
 
-    Write-Status "Policy complementaire appliquee : GenAiDefaultSettings = 2" "OK"
+$RegleExiste = Get-ItemProperty `
+    -Path $CheminPolicyChrome `
+    -Name $AncienneRegle `
+    -ErrorAction SilentlyContinue
+
+if ($null -ne $RegleExiste) {
+    if ($PSCmdlet.ShouldProcess($CheminPolicyChrome, "Supprimer l'ancienne règle GenAiDefaultSettings")) {
+        Remove-ItemProperty `
+            -Path $CheminPolicyChrome `
+            -Name $AncienneRegle `
+            -ErrorAction SilentlyContinue
+
+        Ecrire-Statut "Ancienne règle supprimée : GenAiDefaultSettings" "OK"
+    }
+}
+else {
+    Ecrire-Statut "Ancienne règle GenAiDefaultSettings absente. Aucun nettoyage nécessaire."
 }
 
-$PossibleModelPaths = @(
+$CheminsModelesPossibles = @(
     "$env:LOCALAPPDATA\Google\Chrome\User Data\OptGuideOnDeviceModel",
     "$env:LOCALAPPDATA\Google\Chrome\OptGuideOnDeviceModel",
     "$env:LOCALAPPDATA\Google\Chrome\User Data\OptimizationGuideModelStore",
@@ -83,36 +110,40 @@ $PossibleModelPaths = @(
 
 $Actions = New-Object System.Collections.Generic.List[string]
 
-Write-Status "Recherche des dossiers locaux lies aux modeles IA."
+Ecrire-Statut "Recherche des dossiers locaux liés aux modèles IA."
 
-foreach ($Path in $PossibleModelPaths) {
-    if (Test-Path $Path) {
+foreach ($Chemin in $CheminsModelesPossibles) {
+    if (Test-Path $Chemin) {
         try {
-            $SizeBytes = (Get-ChildItem -Path $Path -Recurse -Force -ErrorAction SilentlyContinue |
-                Measure-Object -Property Length -Sum).Sum
+            $TailleOctets = (
+                Get-ChildItem -Path $Chemin -Recurse -Force -ErrorAction SilentlyContinue |
+                Measure-Object -Property Length -Sum
+            ).Sum
 
-            if ($null -eq $SizeBytes) {
-                $SizeBytes = 0
+            if ($null -eq $TailleOctets) {
+                $TailleOctets = 0
             }
 
-            $SizeGB = [Math]::Round(($SizeBytes / 1GB), 2)
-            Write-Status "Dossier trouve : $Path ($SizeGB Go)" "WARN"
+            $TailleGo = [Math]::Round(($TailleOctets / 1GB), 2)
 
-            if ($PSCmdlet.ShouldProcess($Path, "Supprimer le dossier de modele local")) {
-                Remove-Item -Path $Path -Recurse -Force -ErrorAction Stop
-                Write-Status "Dossier supprime : $Path" "OK"
-                $Actions.Add("Supprime : $Path ($SizeGB Go)")
+            Ecrire-Statut "Dossier trouvé : $Chemin ($TailleGo Go)" "AVERTISSEMENT"
+
+            if ($PSCmdlet.ShouldProcess($Chemin, "Supprimer le dossier de modèle local")) {
+                Remove-Item -Path $Chemin -Recurse -Force -ErrorAction Stop
+
+                Ecrire-Statut "Dossier supprimé : $Chemin" "OK"
+                $Actions.Add("Supprimé : $Chemin ($TailleGo Go)")
             }
         }
         catch {
-            Write-Status "Impossible de supprimer : $Path" "ERROR"
-            Write-Status $_.Exception.Message "ERROR"
-            $Actions.Add("Erreur suppression : $Path - $($_.Exception.Message)")
+            Ecrire-Statut "Impossible de supprimer : $Chemin" "ERREUR"
+            Ecrire-Statut $_.Exception.Message "ERREUR"
+            $Actions.Add("Erreur lors de la suppression : $Chemin - $($_.Exception.Message)")
         }
     }
     else {
-        Write-Status "Absent : $Path"
-        $Actions.Add("Absent : $Path")
+        Ecrire-Statut "Absent : $Chemin"
+        $Actions.Add("Absent : $Chemin")
     }
 }
 
@@ -120,38 +151,43 @@ if (-not (Test-Path $ReportDirectory)) {
     New-Item -Path $ReportDirectory -ItemType Directory -Force | Out-Null
 }
 
-$ReportPath = Join-Path $ReportDirectory "chrome-genai-policy-check.txt"
-$PolicyCheck = Get-ItemProperty -Path $ChromePolicyPath
+$CheminRapport = Join-Path $ReportDirectory "chrome-genai-policy-check.txt"
+$VerificationPolicy = Get-ItemProperty -Path $CheminPolicyChrome
 
-$Report = @"
+$ValeurPolicyPrincipale = $VerificationPolicy.GenAILocalFoundationalModelSettings
+
+$Rapport = @"
 Rapport - Chrome GenAI Hardening
 Date : $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
 
-Policies appliquees :
-GenAILocalFoundationalModelSettings = $($PolicyCheck.GenAILocalFoundationalModelSettings)
-GenAiDefaultSettings                = $($PolicyCheck.GenAiDefaultSettings)
+Policy appliquée :
+GenAILocalFoundationalModelSettings = $ValeurPolicyPrincipale
 
 Chemin registre :
-$ChromePolicyPath
+$CheminPolicyChrome
 
-Actions effectuees :
+Règle supprimée si présente :
+GenAiDefaultSettings
+
+Actions effectuées :
 $($Actions -join "`r`n")
 
-Verification manuelle :
+Vérification manuelle :
 1. Ouvrir Chrome.
 2. Aller sur chrome://policy/.
-3. Cliquer sur Reload policies.
-4. Verifier :
+3. Cliquer sur Reload policies ou Actualiser les règles.
+4. Vérifier que la policy suivante est présente et en état OK :
    - GenAILocalFoundationalModelSettings = 1
-   - GenAiDefaultSettings = 2
-5. Aller sur chrome://on-device-internals/.
-6. Verifier si un modele local est encore present.
+5. Vérifier que GenAiDefaultSettings n'apparaît plus.
+6. Aller sur chrome://on-device-internals/.
+7. Vérifier si un modèle local est encore présent.
 
 Note :
-Si Chrome etait ouvert pendant l'execution, fermer puis relancer Chrome.
+Si Chrome était ouvert pendant l'exécution, fermer toutes les fenêtres Chrome puis relancer le navigateur.
 "@
 
-$Report | Out-File -FilePath $ReportPath -Encoding UTF8
+$Rapport | Out-File -FilePath $CheminRapport -Encoding UTF8
 
-Write-Status "Rapport genere : $ReportPath" "OK"
-Write-Status "Ouvre Chrome puis va sur chrome://policy/ et clique sur Reload policies."
+Ecrire-Statut "Rapport généré : $CheminRapport" "OK"
+Ecrire-Statut "Ouvre Chrome, va sur chrome://policy/, puis clique sur Reload policies ou Actualiser les règles."
+Ecrire-Statut "Résultat attendu : GenAILocalFoundationalModelSettings = 1 avec l'état OK."
