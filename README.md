@@ -220,7 +220,7 @@ Les scripts peuvent toutefois supprimer cette ancienne règle si elle est déjà
 - macOS.
 - Google Chrome installé.
 - Terminal.
-- Droits administrateur avec `sudo`.
+- Droits administrateurice avec `sudo`.
 
 ### Linux
 
