@@ -1,20 +1,38 @@
 <#
 .SYNOPSIS
-    Désactive un maximum de fonctionnalités IA intégrées à Google Chrome.
+    Désactive plusieurs fonctionnalités IA intégrées à Google Chrome sous Windows.
 
 .DESCRIPTION
     Ce script applique plusieurs policies Chrome Enterprise locales via le registre Windows.
-    L'objectif est de réduire au maximum les fonctionnalités IA intégrées à Chrome :
-    modèle IA local, Gemini, AI Mode, aide à l'écriture, historique IA, thèmes IA,
-    DevTools IA et partage de contenu avec les fonctions IA.
+
+    Il désactive notamment :
+    - le modèle IA local GenAI / Gemini Nano.
+    - Gemini dans Chrome.
+    - AI Mode.
+    - Help Me Write.
+    - History Search avec IA.
+    - Create Themes avec IA.
+    - DevTools GenAI.
+    - certaines fonctions de partage de contenu avec les services IA.
+
+    Il nettoie également les artefacts locaux connus :
+    - modèles GenAI / OptimizationGuide.
+    - Screen AI / OCR local.
 
 .NOTES
     À exécuter dans PowerShell en administrateurice.
+
+    Exemple :
+    .\Disable-Chrome-AI-Features.ps1
+
+    Simulation sans modification :
+    .\Disable-Chrome-AI-Features.ps1 -WhatIf
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [string]$ReportDirectory = ".\reports"
+    [string]$ReportDirectory = ".\reports",
+    [string]$BackupDirectory = ".\backups"
 )
 
 function Test-Administrateur {
@@ -46,105 +64,173 @@ function Ecrire-Statut {
     }
 }
 
+function Obtenir-TailleDossierMo {
+    param(
+        [string]$Chemin
+    )
+
+    try {
+        $TailleOctets = (
+            Get-ChildItem -Path $Chemin -Recurse -Force -ErrorAction SilentlyContinue |
+            Measure-Object -Property Length -Sum
+        ).Sum
+
+        if ($null -eq $TailleOctets) {
+            $TailleOctets = 0
+        }
+
+        return [Math]::Round(($TailleOctets / 1MB), 2)
+    }
+    catch {
+        return 0
+    }
+}
+
 if (-not (Test-Administrateur)) {
     Ecrire-Statut "Ce script doit être lancé dans PowerShell en administrateurice." "ERREUR"
     exit 1
 }
 
+$DateExecution = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$DateFichier = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
+
 $CheminPolicyChrome = "HKLM:\SOFTWARE\Policies\Google\Chrome"
+$Actions = New-Object System.Collections.Generic.List[string]
+
+Ecrire-Statut "Démarrage du durcissement Chrome No-AI sous Windows."
+
+if (-not (Test-Path $ReportDirectory)) {
+    New-Item -Path $ReportDirectory -ItemType Directory -Force | Out-Null
+}
+
+if (-not (Test-Path $BackupDirectory)) {
+    New-Item -Path $BackupDirectory -ItemType Directory -Force | Out-Null
+}
 
 if (-not (Test-Path $CheminPolicyChrome)) {
     if ($PSCmdlet.ShouldProcess($CheminPolicyChrome, "Créer la clé de registre Chrome Policy")) {
         New-Item -Path $CheminPolicyChrome -Force | Out-Null
+
         Ecrire-Statut "Clé de registre créée : $CheminPolicyChrome" "OK"
+        $Actions.Add("Clé de registre créée : $CheminPolicyChrome")
+    }
+}
+else {
+    Ecrire-Statut "Clé de registre existante : $CheminPolicyChrome"
+    $Actions.Add("Clé de registre existante : $CheminPolicyChrome")
+}
+
+$BackupPath = Join-Path $BackupDirectory "chrome-policies-backup-$DateFichier.reg"
+
+if (Test-Path $CheminPolicyChrome) {
+    try {
+        $RegPathForExport = "HKLM\SOFTWARE\Policies\Google\Chrome"
+
+        if ($PSCmdlet.ShouldProcess($BackupPath, "Sauvegarder les policies Chrome existantes")) {
+            reg.exe export $RegPathForExport $BackupPath /y | Out-Null
+
+            Ecrire-Statut "Sauvegarde registre créée : $BackupPath" "OK"
+            $Actions.Add("Sauvegarde registre créée : $BackupPath")
+        }
+    }
+    catch {
+        Ecrire-Statut "Impossible de créer la sauvegarde registre : $($_.Exception.Message)" "AVERTISSEMENT"
+        $Actions.Add("Erreur sauvegarde registre : $($_.Exception.Message)")
     }
 }
 
-$PoliciesIA = @{
+$PoliciesIA = [ordered]@{
+    "AIModeSettings"                      = 1
+    "CreateThemesSettings"                = 2
+    "DevToolsGenAiSettings"               = 2
+    "GeminiActOnWebSettings"              = 1
+    "GeminiSettings"                      = 1
     "GenAILocalFoundationalModelSettings" = 1
-    "GeminiSettings"                     = 1
-    "AIModeSettings"                     = 1
-    "HelpMeWriteSettings"                = 2
-    "HistorySearchSettings"              = 2
-    "CreateThemesSettings"               = 2
-    "DevToolsGenAiSettings"              = 2
-    "SearchContentSharingSettings"       = 1
-    "GeminiActOnWebSettings"             = 1
+    "HelpMeWriteSettings"                 = 2
+    "HistorySearchSettings"               = 2
+    "SearchContentSharingSettings"        = 1
 }
-
-$Actions = New-Object System.Collections.Generic.List[string]
 
 foreach ($Policy in $PoliciesIA.GetEnumerator()) {
     $Nom = $Policy.Key
     $Valeur = $Policy.Value
 
-    if ($PSCmdlet.ShouldProcess($CheminPolicyChrome, "Appliquer $Nom = $Valeur")) {
-        New-ItemProperty `
-            -Path $CheminPolicyChrome `
-            -Name $Nom `
-            -PropertyType DWord `
-            -Value $Valeur `
-            -Force | Out-Null
+    try {
+        if ($PSCmdlet.ShouldProcess($CheminPolicyChrome, "Appliquer $Nom = $Valeur")) {
+            New-ItemProperty `
+                -Path $CheminPolicyChrome `
+                -Name $Nom `
+                -PropertyType DWord `
+                -Value $Valeur `
+                -Force | Out-Null
 
-        Ecrire-Statut "Policy appliquée : $Nom = $Valeur" "OK"
-        $Actions.Add("Policy appliquée : $Nom = $Valeur")
+            Ecrire-Statut "Policy appliquée : $Nom = $Valeur" "OK"
+            $Actions.Add("Policy appliquée : $Nom = $Valeur")
+        }
+    }
+    catch {
+        Ecrire-Statut "Erreur lors de l'application de $Nom : $($_.Exception.Message)" "ERREUR"
+        $Actions.Add("Erreur policy : $Nom - $($_.Exception.Message)")
     }
 }
 
-# Nettoyage de GenAiDefaultSettings si elle existe.
-# Cette règle peut être ignorée localement par Chrome lorsqu'elle n'est pas fournie par une source cloud.
 $AncienneRegle = "GenAiDefaultSettings"
 
-$RegleExiste = Get-ItemProperty `
-    -Path $CheminPolicyChrome `
-    -Name $AncienneRegle `
-    -ErrorAction SilentlyContinue
+try {
+    $RegleExiste = Get-ItemProperty `
+        -Path $CheminPolicyChrome `
+        -Name $AncienneRegle `
+        -ErrorAction SilentlyContinue
 
-if ($null -ne $RegleExiste) {
-    if ($PSCmdlet.ShouldProcess($CheminPolicyChrome, "Supprimer GenAiDefaultSettings")) {
-        Remove-ItemProperty `
-            -Path $CheminPolicyChrome `
-            -Name $AncienneRegle `
-            -ErrorAction SilentlyContinue
+    if ($null -ne $RegleExiste) {
+        if ($PSCmdlet.ShouldProcess($CheminPolicyChrome, "Supprimer l'ancienne règle GenAiDefaultSettings")) {
+            Remove-ItemProperty `
+                -Path $CheminPolicyChrome `
+                -Name $AncienneRegle `
+                -ErrorAction SilentlyContinue
 
-        Ecrire-Statut "Ancienne règle supprimée : GenAiDefaultSettings" "OK"
-        $Actions.Add("Ancienne règle supprimée : GenAiDefaultSettings")
+            Ecrire-Statut "Ancienne règle supprimée : GenAiDefaultSettings" "OK"
+            $Actions.Add("Ancienne règle supprimée : GenAiDefaultSettings")
+        }
+    }
+    else {
+        Ecrire-Statut "Ancienne règle absente : GenAiDefaultSettings"
+        $Actions.Add("Ancienne règle absente : GenAiDefaultSettings")
     }
 }
+catch {
+    Ecrire-Statut "Erreur lors du nettoyage de GenAiDefaultSettings : $($_.Exception.Message)" "AVERTISSEMENT"
+    $Actions.Add("Erreur nettoyage GenAiDefaultSettings : $($_.Exception.Message)")
+}
 
-$CheminsModelesPossibles = @(
+$CheminsLocaux = @(
     "$env:LOCALAPPDATA\Google\Chrome\User Data\OptGuideOnDeviceModel",
     "$env:LOCALAPPDATA\Google\Chrome\OptGuideOnDeviceModel",
     "$env:LOCALAPPDATA\Google\Chrome\User Data\OptimizationGuideModelStore",
-    "$env:LOCALAPPDATA\Google\Chrome\User Data\OptimizationGuidePredictionModels"
+    "$env:LOCALAPPDATA\Google\Chrome\User Data\OptimizationGuidePredictionModels",
+    "$env:LOCALAPPDATA\Google\Chrome\User Data\screen_ai"
 )
 
-Ecrire-Statut "Recherche des dossiers locaux liés aux modèles IA."
+Ecrire-Statut "Recherche des artefacts locaux liés aux modèles IA et à Screen AI."
 
-foreach ($Chemin in $CheminsModelesPossibles) {
+foreach ($Chemin in $CheminsLocaux) {
     if (Test-Path $Chemin) {
         try {
-            $TailleOctets = (
-                Get-ChildItem -Path $Chemin -Recurse -Force -ErrorAction SilentlyContinue |
-                Measure-Object -Property Length -Sum
-            ).Sum
+            $TailleMo = Obtenir-TailleDossierMo -Chemin $Chemin
 
-            if ($null -eq $TailleOctets) {
-                $TailleOctets = 0
-            }
+            Ecrire-Statut "Dossier trouvé : $Chemin ($TailleMo Mo)" "AVERTISSEMENT"
 
-            $TailleGo = [Math]::Round(($TailleOctets / 1GB), 2)
-
-            if ($PSCmdlet.ShouldProcess($Chemin, "Supprimer le dossier de modèle local")) {
+            if ($PSCmdlet.ShouldProcess($Chemin, "Supprimer le dossier local")) {
                 Remove-Item -Path $Chemin -Recurse -Force -ErrorAction Stop
 
                 Ecrire-Statut "Dossier supprimé : $Chemin" "OK"
-                $Actions.Add("Dossier supprimé : $Chemin ($TailleGo Go)")
+                $Actions.Add("Supprimé : $Chemin ($TailleMo Mo)")
             }
         }
         catch {
             Ecrire-Statut "Impossible de supprimer : $Chemin" "ERREUR"
             Ecrire-Statut $_.Exception.Message "ERREUR"
+
             $Actions.Add("Erreur suppression : $Chemin - $($_.Exception.Message)")
         }
     }
@@ -154,46 +240,65 @@ foreach ($Chemin in $CheminsModelesPossibles) {
     }
 }
 
-if (-not (Test-Path $ReportDirectory)) {
-    New-Item -Path $ReportDirectory -ItemType Directory -Force | Out-Null
-}
-
 $CheminRapport = Join-Path $ReportDirectory "chrome-no-ai-hardening-report.txt"
 
+$PoliciesTexte = (
+    $PoliciesIA.GetEnumerator() |
+    Sort-Object Name |
+    ForEach-Object { "$($_.Key) = $($_.Value)" }
+) -join "`r`n"
+
 $Rapport = @"
-Rapport - Chrome No-AI Hardening
-Date : $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+Rapport - Chrome No-AI Hardening Windows
+Date : $DateExecution
 
 Chemin registre :
 $CheminPolicyChrome
 
-Policies IA appliquées :
-$(
-    $PoliciesIA.GetEnumerator() |
-    Sort-Object Name |
-    ForEach-Object { "$($_.Key) = $($_.Value)" } |
-    Out-String
-)
+Policies appliquées :
+$PoliciesTexte
+
+Règle nettoyée si présente :
+GenAiDefaultSettings
+
+Artefacts locaux vérifiés :
+- modèles GenAI / OptimizationGuide
+- Screen AI / OCR local
+
+Chemins vérifiés :
+$($CheminsLocaux -join "`r`n")
 
 Actions effectuées :
 $($Actions -join "`r`n")
 
 Vérification manuelle :
-1. Ouvrir Chrome.
-2. Aller sur chrome://policy/.
-3. Cliquer sur Reload policies ou Actualiser les règles.
-4. Vérifier que les policies appliquées sont en état OK.
-5. Aller sur chrome://on-device-internals/.
-6. Vérifier que le modèle local est en état Not Eligible ou absent.
-7. Aller dans chrome://settings/ai si disponible.
-8. Vérifier que les fonctions IA ne sont plus disponibles.
+1. Fermer complètement Google Chrome.
+2. Relancer Google Chrome.
+3. Ouvrir chrome://policy/.
+4. Cliquer sur Reload policies ou Actualiser les règles.
+5. Vérifier que les policies IA sont en état OK.
+6. Vérifier que GenAiDefaultSettings n'apparaît plus.
+7. Ouvrir chrome://on-device-internals/.
+8. Vérifier que le modèle local est absent ou en état Not Eligible.
+9. Vérifier que le dossier screen_ai n'est plus présent dans le profil Chrome.
 
-Limite :
-Ce script désactive les fonctionnalités IA intégrées à Chrome via policies locales.
+Résultat attendu dans chrome://policy/ :
+AIModeSettings                       1    OK
+CreateThemesSettings                 2    OK
+DevToolsGenAiSettings                2    OK
+GeminiActOnWebSettings               1    OK
+GeminiSettings                       1    OK
+GenAILocalFoundationalModelSettings  1    OK
+HelpMeWriteSettings                  2    OK
+HistorySearchSettings                2    OK
+SearchContentSharingSettings         1    OK
+
+Note :
+Ce script applique les policies IA Chrome connues et nettoie les artefacts locaux connus.
 Il ne garantit pas le blocage de tous les contenus IA côté serveur affichés dans une page web.
 "@
 
 $Rapport | Out-File -FilePath $CheminRapport -Encoding UTF8
 
 Ecrire-Statut "Rapport généré : $CheminRapport" "OK"
-Ecrire-Statut "Ouvre chrome://policy/ puis clique sur Reload policies ou Actualiser les règles."
+Ecrire-Statut "Ferme Chrome, relance-le, puis vérifie chrome://policy/ et chrome://on-device-internals/."
