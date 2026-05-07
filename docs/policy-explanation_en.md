@@ -428,3 +428,16 @@ macOS          : plist file
 Linux          : managed policy JSON file
 Verification   : chrome://policy/ and chrome://on-device-internals/
 ```
+
+## Policy references
+
+- Chrome Enterprise Policy List: https://chromeenterprise.google/policies/
+- GenAILocalFoundationalModelSettings: https://chromeenterprise.google/policies/#GenAILocalFoundationalModelSettings
+- AIModeSettings: https://chromeenterprise.google/policies/#AIModeSettings
+- GeminiSettings: https://chromeenterprise.google/policies/#GeminiSettings
+- GeminiActOnWebSettings: https://chromeenterprise.google/policies/gemini-act-on-web-settings/
+- CreateThemesSettings: https://chromeenterprise.google/policies/#CreateThemesSettings
+- HelpMeWriteSettings: https://chromeenterprise.google/policies/#HelpMeWriteSettings
+- HistorySearchSettings: https://chromeenterprise.google/policies/#HistorySearchSettings
+- DevToolsGenAiSettings: https://chromeenterprise.google/policies/#DevToolsGenAiSettings
+- SearchContentSharingSettings: https://chromeenterprise.google/policies/#SearchContentSharingSettings
