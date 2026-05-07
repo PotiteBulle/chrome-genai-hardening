@@ -76,7 +76,7 @@ Ce composant ne semble pas être exactement le même élément que le modèle Ge
 
 Cependant, il reste pertinent dans le cadre de ce projet, car il s'agit d'un autre composant local lié à des fonctionnalités d'analyse automatique présentes dans Chrome.
 
-Point important : tout le monde n'aura pas forcément ce dossier. Certaines personnes peuvent avoir un dossier `screen_ai`, tandis que d'autres non. Sa présence peut dépendre de plusieurs facteurs, notamment la version de Chrome utilisée, le canal installé, les fonctionnalités activées, les flags expérimentaux, les tests progressifs côté Google, le profil utilisateur et l'historique d'utilisation.
+Point important : tout le monde n'aura pas forcément ce dossier. Certaines personnes peuvent avoir un dossier `screen_ai`, tandis que d'autres non. Sa présence peut dépendre de plusieurs facteurs, notamment la version de Chrome utilisée, le canal installé, les fonctionnalités activées, les flags expérimentaux, les tests progressifs côté Google, le profil utilisateurice et l'historique d'utilisation.
 
 Les canaux Chrome pouvant présenter des différences sont notamment :
 
