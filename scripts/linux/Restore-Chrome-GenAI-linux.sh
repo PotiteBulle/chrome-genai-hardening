@@ -3,108 +3,99 @@
 # Restore-Chrome-GenAI-linux.sh
 #
 # Objectif :
-# Supprimer les policies Chrome GenAI / No-AI appliquées par le projet sur Linux.
+# Restaurer le comportement par défaut de Google Chrome sur Linux pour les policies IA du projet.
 #
 # Fonctionnement :
-# - Sauvegarde les fichiers de policies du projet si présents.
-# - Supprime les fichiers JSON créés par les scripts de durcissement.
+# - Vérifie que le script est lancé avec sudo.
+# - Recherche les fichiers de policies créés par le projet.
+# - Sauvegarde les fichiers trouvés avant suppression.
+# - Supprime les fichiers JSON de policies du projet.
 # - Génère un rapport de restauration.
+#
+# Important :
+# Ce script restaure uniquement les policies Chrome appliquées par le projet.
+# Il ne restaure pas les fichiers locaux supprimés, comme screen_ai ou les modèles IA.
 #
 # À exécuter avec sudo :
 # sudo ./Restore-Chrome-GenAI-linux.sh
+#
+# Note :
+# Ce script cible Google Chrome officiel.
+# Pour Chromium, le chemin des policies peut être différent :
+# /etc/chromium/policies/managed/
 
 set -euo pipefail
 
 REPORT_DIRECTORY="${1:-./reports}"
 POLICY_DIR="/etc/opt/chrome/policies/managed"
+
 TARGET_FILES=(
-    "${POLICY_DIR}/chrome-genai-hardening.json"
-    "${POLICY_DIR}/chrome-no-ai-hardening.json"
+    "$POLICY_DIR/chrome-genai-hardening.json"
+    "$POLICY_DIR/chrome-no-ai-hardening.json"
 )
 
 BACKUP_DIR="./backups"
+
 DATE_NOW="$(date '+%Y-%m-%d %H:%M:%S')"
 DATE_FILE="$(date '+%Y-%m-%d_%H-%M-%S')"
 
 ACTIONS=()
 
-ecrire_statut() {
-    local niveau="$1"
-    local message="$2"
-
-    case "$niveau" in
-        "OK")
-            printf '[OK] %s\n' "$message"
-            ;;
-        "AVERTISSEMENT")
-            printf '[AVERTISSEMENT] %s\n' "$message"
-            ;;
-        "ERREUR")
-            printf '[ERREUR] %s\n' "$message"
-            ;;
-        *)
-            printf '[INFO] %s\n' "$message"
-            ;;
-    esac
+log() {
+    printf '[%s] %s\n' "$1" "$2"
 }
 
-verifier_root() {
-    if [[ "${EUID}" -ne 0 ]]; then
-        ecrire_statut "ERREUR" "Ce script doit être lancé avec sudo."
-        ecrire_statut "INFO" "Exemple : sudo ./Restore-Chrome-GenAI-linux.sh"
-        exit 1
-    fi
-}
+if [[ "${EUID}" -ne 0 ]]; then
+    log "ERREUR" "Ce script doit être lancé avec sudo."
+    exit 1
+fi
 
-determiner_utilisateur_reel() {
-    if [[ -n "${SUDO_USER:-}" ]]; then
-        echo "$SUDO_USER"
-    else
-        logname 2>/dev/null || echo "$USER"
-    fi
-}
+UTILISATEUR_REEL="${SUDO_USER:-$(logname 2>/dev/null || echo "$USER")}"
 
-verifier_root
+mkdir -p "$REPORT_DIRECTORY" "$BACKUP_DIR"
 
-UTILISATEUR_REEL="$(determiner_utilisateur_reel)"
-
-ecrire_statut "INFO" "Démarrage de la restauration Chrome GenAI / No-AI pour Linux."
-
-mkdir -p "$REPORT_DIRECTORY"
-mkdir -p "$BACKUP_DIR"
+log "INFO" "Démarrage de la restauration Chrome GenAI / No-AI pour Linux."
+log "INFO" "Utilisateur ciblé : $UTILISATEUR_REEL"
+log "INFO" "Dossier de policies Chrome : $POLICY_DIR"
 
 for fichier in "${TARGET_FILES[@]}"; do
     if [[ -f "$fichier" ]]; then
-        nom_fichier="$(basename "$fichier")"
-        sauvegarde="${BACKUP_DIR}/${nom_fichier}.restore-backup-${DATE_FILE}"
+        nom="$(basename "$fichier")"
+        sauvegarde="$BACKUP_DIR/${nom}.restore-backup-${DATE_FILE}"
 
         cp "$fichier" "$sauvegarde"
         rm -f "$fichier"
 
-        ecrire_statut "OK" "Fichier de policy supprimé : $fichier"
-        ecrire_statut "OK" "Sauvegarde créée : $sauvegarde"
-
         ACTIONS+=("Fichier supprimé : $fichier")
         ACTIONS+=("Sauvegarde créée : $sauvegarde")
+
+        log "OK" "Fichier de policy supprimé : $fichier"
+        log "OK" "Sauvegarde créée : $sauvegarde"
     else
-        ecrire_statut "INFO" "Fichier absent : $fichier"
         ACTIONS+=("Fichier absent : $fichier")
+        log "INFO" "Fichier absent : $fichier"
     fi
 done
 
-REPORT_PATH="${REPORT_DIRECTORY}/chrome-genai-restore-report-linux.txt"
+REPORT_PATH="$REPORT_DIRECTORY/chrome-genai-restore-report-linux.txt"
 
 {
     echo "Rapport - Restauration Chrome GenAI / No-AI Linux"
     echo "Date : $DATE_NOW"
     echo
-    echo "Chemin policies :"
+    echo "Utilisateur ciblé :"
+    echo "$UTILISATEUR_REEL"
+    echo
+    echo "Dossier de policies Chrome :"
     echo "$POLICY_DIR"
+    echo
+    echo "Fichiers de policies ciblés :"
+    printf '%s\n' "${TARGET_FILES[@]}"
     echo
     echo "Actions effectuées :"
     printf '%s\n' "${ACTIONS[@]}"
     echo
-    echo "Policies retirées si présentes :"
+    echo "Policies normalement retirées après suppression des fichiers :"
     echo "AIModeSettings"
     echo "CreateThemesSettings"
     echo "DevToolsGenAiSettings"
@@ -119,16 +110,22 @@ REPORT_PATH="${REPORT_DIRECTORY}/chrome-genai-restore-report-linux.txt"
     echo "Vérification manuelle :"
     echo "1. Fermer complètement Google Chrome."
     echo "2. Relancer Google Chrome."
-    echo "3. Aller sur chrome://policy/."
+    echo "3. Ouvrir chrome://policy/."
     echo "4. Cliquer sur Reload policies ou Actualiser les règles."
     echo "5. Vérifier que les policies du projet ne sont plus appliquées."
+    echo "6. Vérifier que GenAiDefaultSettings n'apparaît pas."
     echo
     echo "Note :"
-    echo "Ce script supprime uniquement les fichiers de policies créés par le projet."
-    echo "Il ne supprime pas les fichiers de policies appartenant à d'autres outils ou à une entreprise."
+    echo "Ce script restaure uniquement les policies Chrome appliquées par le projet."
+    echo "Il ne restaure pas les fichiers locaux supprimés, comme screen_ai ou les modèles IA."
+    echo "Si Chrome a besoin de certains composants, il pourra les retélécharger selon sa configuration et ses policies actives."
+    echo
+    echo "Compatibilité :"
+    echo "Ce script cible Google Chrome officiel avec le chemin : /etc/opt/chrome/policies/managed/."
+    echo "Pour Chromium, le chemin peut être différent : /etc/chromium/policies/managed/."
 } > "$REPORT_PATH"
 
 chown -R "$UTILISATEUR_REEL":"$UTILISATEUR_REEL" "$REPORT_DIRECTORY" "$BACKUP_DIR" 2>/dev/null || true
 
-ecrire_statut "OK" "Rapport généré : $REPORT_PATH"
-ecrire_statut "INFO" "Ferme Chrome, relance-le, puis vérifie chrome://policy/."
+log "OK" "Rapport généré : $REPORT_PATH"
+log "INFO" "Ferme Chrome, relance-le, puis vérifie chrome://policy/."
