@@ -2,9 +2,93 @@
 
 Hardening toolkit for Google Chrome on Windows, macOS, and Linux.
 
-This project allows you to disable the download of the local AI model used by some Chrome GenAI features, including Gemini Nano and embedded models. It also allows you to disable several Chrome AI integrations through local Chrome Enterprise policies available depending on the operating system.
+This project disables the download of the local AI model used by some Chrome GenAI features, including Gemini Nano or embedded models. It can also disable several Chrome AI integrations through local Chrome Enterprise policies depending on the operating system.
 
-The goal is simple: regain control over Chrome AI features, reduce unwanted automatic downloads, limit browser-side AI integrations, remove already downloaded local model files, and generate verification reports that can be used in a Privacy Hardening workflow.
+The project also cleans known local AI artifacts, including folders related to GenAI / OptimizationGuide models and the local `screen_ai` folder, associated with Chrome Screen AI / OCR components.
+
+The goal is simple: regain control over Chrome AI features, reduce unwanted automatic downloads, limit browser-side AI integrations, remove already downloaded model files, clean some local AI components, and generate verification reports for a Privacy Hardening workflow.
+
+## Local Screen AI discovery context
+
+This project was tested on a Windows machine with Google Chrome:
+
+```text
+Version 148.0.7778.97 (Official Build) (64-bit)
+```
+
+During a deeper manual review of Chrome folders under:
+
+```text
+%LOCALAPPDATA%\Google\Chrome\User Data\
+```
+
+a local folder named `screen_ai` was identified.
+
+This folder contained files and subfolders such as:
+
+```text
+_metadata
+aksara
+gocr
+chrome_screen_ai.dll
+files_list_main_content_extraction.txt
+files_list_ocr.txt
+gocr_mobile_chrome_multiscript_2024_q4_engine.binarypb
+manifest.json
+README.md
+screen2x_config.pbtxt
+screen2x_model.tflite
+THIRD_PARTY_LICENSES
+```
+
+## Screen AI validation screenshots
+
+### screen_ai folder content
+
+The following screenshot shows the files found inside the `screen_ai` folder.
+
+![screen_ai folder content](docs/screenshots/screenai-evidence-1.png)
+
+### Chrome Screen AI README
+
+The following screenshot shows the `README.md` file found inside the `screen_ai` folder.
+
+![Chrome Screen AI README](docs/screenshots/screenai-evidence-1.png)
+
+A `README.md` file inside this component states that the Chrome Screen AI library provides two on-device features for Chrome and ChromeOS:
+
+```text
+Main Content Extraction
+Optical Character Recognition
+```
+
+The README also states that these features run entirely on device and do not send data to the network or store it on disk according to that document.
+
+## Disclaimer about screen_ai
+
+The `screen_ai` folder was not initially discovered through the article that motivated this project. It was found later during a deeper analysis of the Chrome profile directory.
+
+This component does not appear to be the exact same element as the Gemini Nano / GenAI model discussed in the original article. It appears to be related to Chrome Screen AI, OCR, and main content extraction.
+
+However, it is still relevant to this project because it is another local component related to automated analysis features present in Chrome.
+
+Important note: not everyone will necessarily have this folder. Some users may have a `screen_ai` folder, while others may not. Its presence can depend on multiple factors, including the Chrome version, the installed release channel, enabled features, experimental flags, staged Google rollouts, the local profile, and usage history.
+
+Chrome channels that may differ include:
+
+```text
+Stable
+Extended Stable
+Beta
+Dev
+Canary
+```
+
+The question remains legitimate: why is this kind of local component not more visible to the user? What level of consent, transparency, and control is actually provided around these features?
+
+This project does not claim to prove malicious intent. It documents a local observation, provides a defensive hardening approach, and leaves the question open.
+
+To be continued.
 
 ## Why this project exists
 
@@ -12,11 +96,11 @@ This project was created after reading the following article:
 
 https://www.thatprivacyguy.com/blog/chrome-silent-nano-install/
 
-The article explains that Chrome can locally download a large AI model related to Gemini Nano / GenAI. This repository provides a defensive, documented, and reversible response: use locally available Chrome Enterprise policies to prevent the local model from being downloaded, then clean up any existing local artifacts.
+The article explains that Chrome may locally download a large AI model related to Gemini Nano / GenAI. This repository provides a defensive, documented, and reversible response: use locally available Chrome Enterprise policies to prevent the local model download, then clean up existing local artifacts.
 
 The project was later extended to disable other AI features integrated into Chrome, such as Gemini, AI Mode, Help Me Write, History Search, Create Themes, DevTools GenAI, and some content-sharing features related to AI services.
 
-This project does not attempt to modify Chrome or bypass its protections. It only applies administrator configuration rules.
+The project also cleans the `screen_ai` folder when present in the Chrome profile.
 
 ## Project goals
 
@@ -26,13 +110,13 @@ This toolkit allows you to:
 - Disable several AI features integrated into Chrome.
 - Apply Chrome Enterprise policies depending on the operating system.
 - Remove local folders related to already downloaded AI models.
-- Clean up some older rules that may trigger errors in `chrome://policy/`.
+- Remove local folders related to `screen_ai` / Screen AI / OCR when present.
+- Clean up older rules that may trigger errors in `chrome://policy/`.
 - Generate verification reports.
+- Create backups before some modifications.
 - Provide a clean base for auditing, hardening, and security documentation.
 
 ## Supported systems
-
-The project targets three platforms:
 
 ```text
 Windows
@@ -54,35 +138,7 @@ This project is intended for privacy hardening, system administration, and defen
 
 It does not modify Chrome binaries, bypass security mechanisms, or perform any offensive action.
 
-The scripts only apply local Chrome Enterprise policies and remove local model files when they are present.
-
 Use these scripts only on a machine you own or are authorized to administer.
-
-## Recommended repository structure
-
-```text
-chrome-genai-hardening/
-├── README.md
-├── LICENSE
-├── .gitignore
-├── scripts/
-│   ├── windows/
-│   │   ├── Disable-Chrome-GenAI.ps1
-│   │   ├── Disable-Chrome-AI-Features.ps1
-│   │   └── Restore-Chrome-GenAI.ps1
-│   ├── macos/
-│   │   ├── Disable-Chrome-GenAI-macOS.sh
-│   │   ├── Disable-Chrome-AI-Features-macOS.sh
-│   │   └── Restore-Chrome-GenAI-macOS.sh
-│   └── linux/
-│       ├── Disable-Chrome-GenAI-linux.sh
-│       ├── Disable-Chrome-AI-Features-linux.sh
-│       └── Restore-Chrome-GenAI-linux.sh
-├── docs/
-│   ├── policy-explanation.md
-└── reports/
-    └── example-report.md
-```
 
 ## Available scripts
 
@@ -104,7 +160,12 @@ Main policy applied:
 GenAILocalFoundationalModelSettings = 1
 ```
 
-This rule tells Chrome not to download the local AI model used by some GenAI features.
+The targeted mode also cleans known local artifacts:
+
+```text
+GenAI / OptimizationGuide
+screen_ai / local Screen AI / OCR
+```
 
 ### Hardened mode
 
@@ -118,7 +179,7 @@ scripts/macos/Disable-Chrome-AI-Features-macOS.sh
 scripts/linux/Disable-Chrome-AI-Features-linux.sh
 ```
 
-Policies applied by the hardened mode:
+Policies applied by hardened mode:
 
 ```text
 AIModeSettings                       = 1
@@ -132,235 +193,66 @@ HistorySearchSettings                = 2
 SearchContentSharingSettings         = 1
 ```
 
+The hardened mode also cleans known local artifacts:
+
+```text
+GenAI / OptimizationGuide
+screen_ai / local Screen AI / OCR
+```
+
 ### Restore mode
 
-The restore mode removes the policies applied by this project in order to return Chrome to its default behavior.
+Restore mode removes the policies applied by this project in order to return Chrome to its default behavior.
 
-Related scripts:
+Important: restore scripts only restore Chrome policies applied by this project. They do not restore deleted local files such as `screen_ai` or AI models.
 
-```text
-scripts/windows/Restore-Chrome-GenAI.ps1
-scripts/macos/Restore-Chrome-GenAI-macOS.sh
-scripts/linux/Restore-Chrome-GenAI-linux.sh
-```
-
-## How it works by system
+## Usage
 
 ### Windows
-
-On Windows, policies are applied in the Registry:
-
-```text
-HKLM:\SOFTWARE\Policies\Google\Chrome
-```
-
-The scripts must be run in PowerShell as Administrator.
-
-### macOS
-
-On macOS, policies are applied through a plist file:
-
-```text
-/Library/Managed Preferences/com.google.Chrome.plist
-```
-
-The scripts must be run with `sudo`.
-
-### Linux
-
-On Linux, policies are applied through a JSON file in Chrome's managed policies directory:
-
-```text
-/etc/opt/chrome/policies/managed/chrome-genai-hardening.json
-```
-
-The scripts must be run with `sudo`.
-
-Depending on the distribution or the Chrome package type, some paths may vary. For Google Chrome Stable installed from the official package, the recommended path is generally:
-
-```text
-/etc/opt/chrome/policies/managed/
-```
-
-For Chromium, the path may be different, for example:
-
-```text
-/etc/chromium/policies/managed/
-```
-
-This project primarily targets Google Chrome.
-
-## Note about GenAiDefaultSettings
-
-The following policy is not used by this project:
-
-```text
-GenAiDefaultSettings
-```
-
-Some Chrome installations may ignore this rule when it is configured locally. In that case, Chrome may show an error in `chrome://policy/` indicating that the rule is ignored because it is not configured by a cloud source.
-
-To avoid this error, this project does not use `GenAiDefaultSettings`.
-
-However, the scripts may remove this older rule if it is already present on the machine.
-
-## Requirements
-
-### Windows
-
-- Windows 10 or Windows 11.
-- Google Chrome installed.
-- PowerShell.
-- Administrator privileges.
-
-### macOS
-
-- macOS.
-- Google Chrome installed.
-- Terminal.
-- Administrator privileges with `sudo`.
-
-### Linux
-
-- Linux distribution with Google Chrome installed.
-- Bash shell.
-- Administrator privileges with `sudo`.
-- Access to `/etc/opt/chrome/policies/managed/`.
-
-## Installation
-
-Clone the repository:
-
-```bash
-git clone https://github.com/PotiteBulle/chrome-genai-hardening
-cd chrome-genai-hardening
-```
-
-## Usage on Windows
-
-### Targeted mode
-
-Open PowerShell as Administrator, then run:
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\windows\Disable-Chrome-GenAI.ps1
-```
-
-### Hardened mode
-
-Open PowerShell as Administrator, then run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\windows\Disable-Chrome-AI-Features.ps1
 ```
 
-### Restore
+Windows scripts support simulation mode with `-WhatIf`:
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\windows\Restore-Chrome-GenAI.ps1
+.\scripts\windows\Disable-Chrome-AI-Features.ps1 -WhatIf
 ```
 
-## Usage on macOS
-
-### Targeted mode
-
-```bash
-chmod +x scripts/macos/Disable-Chrome-GenAI-macOS.sh
-sudo ./scripts/macos/Disable-Chrome-GenAI-macOS.sh
-```
-
-### Hardened mode
+### macOS
 
 ```bash
 chmod +x scripts/macos/Disable-Chrome-AI-Features-macOS.sh
 sudo ./scripts/macos/Disable-Chrome-AI-Features-macOS.sh
-```
-
-### Restore
-
-```bash
-chmod +x scripts/macos/Restore-Chrome-GenAI-macOS.sh
-sudo ./scripts/macos/Restore-Chrome-GenAI-macOS.sh
-```
-
-After running the script, fully close Chrome:
-
-```bash
 osascript -e 'quit app "Google Chrome"'
 ```
 
-Then relaunch Chrome.
-
-## Usage on Linux
-
-### Targeted mode
-
-```bash
-chmod +x scripts/linux/Disable-Chrome-GenAI-linux.sh
-sudo ./scripts/linux/Disable-Chrome-GenAI-linux.sh
-```
-
-### Hardened mode
+### Linux
 
 ```bash
 chmod +x scripts/linux/Disable-Chrome-AI-Features-linux.sh
 sudo ./scripts/linux/Disable-Chrome-AI-Features-linux.sh
 ```
 
-### Restore
-
-```bash
-chmod +x scripts/linux/Restore-Chrome-GenAI-linux.sh
-sudo ./scripts/linux/Restore-Chrome-GenAI-linux.sh
-```
-
-After running the script, fully close Chrome and relaunch it.
-
-## What the hardened mode does
-
-The hardened script will:
-
-1. Check administrator privileges.
-2. Create the policy directory if needed.
-3. Apply several Chrome Enterprise AI policies.
-4. Apply `GenAILocalFoundationalModelSettings = 1`.
-5. Remove or avoid the older `GenAiDefaultSettings` rule.
-6. Search for local folders related to AI models.
-7. Remove any matching folders found.
-8. Generate a verification report.
+After execution, fully close Chrome and relaunch it.
 
 ## Verification in Chrome
 
-After running the script, open Chrome and go to:
+Open Chrome and go to:
 
 ```text
 chrome://policy/
 ```
 
-Then click:
+Click:
 
 ```text
 Reload policies
 ```
 
-or the localized equivalent.
-
-You should see the hardened mode policies with the `OK` status, for example:
-
-```text
-AIModeSettings                       1    OK
-CreateThemesSettings                 2    OK
-DevToolsGenAiSettings                2    OK
-GeminiActOnWebSettings               1    OK
-GeminiSettings                       1    OK
-GenAILocalFoundationalModelSettings  1    OK
-HelpMeWriteSettings                  2    OK
-HistorySearchSettings                2    OK
-SearchContentSharingSettings         1    OK
-```
+You should see the hardened mode policies with `OK` status.
 
 You should no longer see:
 
@@ -384,87 +276,37 @@ Folder size: 0 MiB
 enabled by enterprise policy: false
 ```
 
-This indicates that the local GenAI model is not usable by Chrome and that the hardening is correctly applied.
+## screen_ai verification
 
-## Generated reports
+After applying the script, you can verify that the `screen_ai` folder is no longer present in the Chrome profile.
 
-By default, the scripts generate reports in:
+Main paths:
+
+```text
+Windows : %LOCALAPPDATA%\Google\Chrome\User Data\screen_ai
+macOS   : ~/Library/Application Support/Google/Chrome/User Data/screen_ai
+Linux   : ~/.config/google-chrome/User Data/screen_ai
+```
+
+Depending on the Chrome version, nearby paths may also exist. The scripts check several possible paths.
+
+## Reports and backups
+
+Scripts generate reports in:
 
 ```text
 ./reports/
 ```
 
-Examples:
+Scripts may generate backups in:
 
 ```text
-./reports/chrome-genai-policy-check.txt
-./reports/chrome-no-ai-hardening-report.txt
-./reports/chrome-genai-restore-report.txt
-./reports/chrome-genai-policy-check-macos.txt
-./reports/chrome-no-ai-hardening-report-macos.txt
-./reports/chrome-genai-restore-report-macos.txt
-./reports/chrome-genai-policy-check-linux.txt
-./reports/chrome-no-ai-hardening-report-linux.txt
-./reports/chrome-genai-restore-report-linux.txt
+./backups/
 ```
-
-Reports may contain:
-
-- Execution date.
-- Applied policies.
-- Checked paths.
-- Performed actions.
-- Removed or missing folders.
-- Manual verification steps.
-
-## Checked model paths
-
-### Windows
-
-```text
-%LOCALAPPDATA%\Google\Chrome\User Data\OptGuideOnDeviceModel
-%LOCALAPPDATA%\Google\Chrome\OptGuideOnDeviceModel
-%LOCALAPPDATA%\Google\Chrome\User Data\OptimizationGuideModelStore
-%LOCALAPPDATA%\Google\Chrome\User Data\OptimizationGuidePredictionModels
-```
-
-### macOS
-
-```text
-~/Library/Application Support/Google/Chrome/OptGuideOnDeviceModel
-~/Library/Application Support/Google/Chrome/OptimizationGuideModelStore
-~/Library/Application Support/Google/Chrome/OptimizationGuidePredictionModels
-~/Library/Application Support/Google/Chrome/User Data/OptGuideOnDeviceModel
-~/Library/Application Support/Google/Chrome/User Data/OptimizationGuideModelStore
-~/Library/Application Support/Google/Chrome/User Data/OptimizationGuidePredictionModels
-```
-
-### Linux
-
-```text
-~/.config/google-chrome/OptGuideOnDeviceModel
-~/.config/google-chrome/OptimizationGuideModelStore
-~/.config/google-chrome/OptimizationGuidePredictionModels
-~/.config/google-chrome/User Data/OptGuideOnDeviceModel
-~/.config/google-chrome/User Data/OptimizationGuideModelStore
-~/.config/google-chrome/User Data/OptimizationGuidePredictionModels
-```
-
-These paths may change depending on Chrome versions.
-
-## Why use a policy instead of only deleting files?
-
-Only deleting local files may not be enough.
-
-Chrome may download some components again if an AI feature or an integrated API triggers their use.
-
-The policy-based approach is cleaner because it directly tells Chrome that the local model download is not allowed.
-
-File removal is therefore a complementary cleanup step, but the policy remains the main part of the hardening process.
 
 ## Limitations
 
-This project greatly reduces browser-side Chrome AI features, but it cannot guarantee complete blocking of every server-side AI-generated content.
+This project greatly reduces browser-side Chrome AI features, but it cannot guarantee complete blocking of all server-side AI-generated content.
 
 For example:
 
@@ -473,8 +315,10 @@ For example:
 - An installed extension can use its own AI features.
 - Google may modify or add policies in future Chrome versions.
 - Some policies may depend on the installed Chrome version.
+- `screen_ai` may be downloaded again by Chrome if a feature or configuration triggers it.
+- The `screen_ai` folder may be present for some users and absent for others depending on Chrome channel, version, flags, staged rollouts, or local usage.
 
-This project does not replace a full browser privacy configuration.
+This project does not replace a complete browser privacy configuration.
 
 ## Recommended checks
 
@@ -482,13 +326,7 @@ After execution, check:
 
 ```text
 chrome://policy/
-```
-
-```text
 chrome://on-device-internals/
-```
-
-```text
 chrome://flags/
 ```
 
@@ -503,51 +341,15 @@ Summarization
 Writer
 Rewriter
 Proofreader
+Screen AI
+OCR
 ```
-
-Then disable experimental AI flags if needed.
-
-## Validation
-
-Validation was performed on a personal Windows machine: Chrome policies related to AI features were successfully applied with the `OK` status in `chrome://policy/`.
-
-The script disables the local GenAI model as well as several Chrome AI integrations, including Gemini, AI Mode, Help Me Write, History Search, Create Themes, DevTools GenAI, and Search Content Sharing.
-
-The local model can also be checked in `chrome://on-device-internals/`, where it should appear as ineligible or absent.
-
-The macOS and Linux versions should be verified in the same way with `chrome://policy/` and `chrome://on-device-internals/`.
-
-## Possible improvements
-
-Possible future improvements:
-
-- Add a WhatIf mode.
-- Automatically verify policies after application.
-- Add a backup system before modification.
-- Add a compatibility table by Chrome version.
-- Add specific Chromium support.
 
 ## Sources
 
 - Article that motivated the project: https://www.thatprivacyguy.com/blog/chrome-silent-nano-install/
 - Chrome Enterprise Policies documentation: https://chromeenterprise.google/policies/
 - Chrome Built-in AI documentation: https://developer.chrome.com/docs/ai/
-
-## Contributing
-
-Contributions are welcome.
-
-You can propose:
-
-- New detection paths.
-- PowerShell improvements.
-- Bash improvements.
-- Better documentation.
-- Screenshots.
-- Example reports.
-- Compatibility with other Chromium-based browsers.
-- Tests on different Chrome versions.
-- Tests on Windows, macOS, and Linux.
 
 ## License
 
@@ -564,5 +366,5 @@ Goal      : disable AI features integrated into Chrome
 Systems   : Windows, macOS, Linux
 Languages : PowerShell, Bash
 Level     : Privacy Hardening
-Action    : local policies + local model cleanup + reports
+Action    : local policies + local model cleanup + screen_ai + reports
 ```
