@@ -80,8 +80,6 @@ chrome-genai-hardening/
 │       └── Restore-Chrome-GenAI-linux.sh
 ├── docs/
 │   ├── policy-explanation.md
-│   ├── verification.md
-│   └── screenshots.md
 └── reports/
     └── example-report.md
 ```
