@@ -3,7 +3,17 @@
 # Restore-Chrome-GenAI-macOS.sh
 #
 # Objectif :
-# Supprimer les policies Chrome GenAI appliquées par le script macOS.
+# Restaurer le comportement par défaut de Chrome sur macOS pour les policies IA du projet.
+#
+# Fonctionnement :
+# - Vérifie que le script est lancé avec sudo.
+# - Sauvegarde le fichier de policies Chrome macOS s'il existe.
+# - Supprime les policies IA appliquées par le projet.
+# - Génère un rapport de restauration.
+#
+# Important :
+# Ce script restaure uniquement les policies Chrome.
+# Il ne restaure pas les fichiers locaux supprimés, comme screen_ai ou les modèles IA.
 #
 # À exécuter avec sudo :
 # sudo ./Restore-Chrome-GenAI-macOS.sh
@@ -12,82 +22,103 @@ set -euo pipefail
 
 REPORT_DIRECTORY="${1:-./reports}"
 POLICY_PLIST="/Library/Managed Preferences/com.google.Chrome.plist"
+BACKUP_DIR="./backups"
 DATE_NOW="$(date '+%Y-%m-%d %H:%M:%S')"
+DATE_FILE="$(date '+%Y-%m-%d_%H-%M-%S')"
+ACTIONS=()
 
-ecrire_statut() {
-    local niveau="$1"
-    local message="$2"
-
-    case "$niveau" in
-        "OK")
-            printf '[OK] %s\n' "$message"
-            ;;
-        "AVERTISSEMENT")
-            printf '[AVERTISSEMENT] %s\n' "$message"
-            ;;
-        "ERREUR")
-            printf '[ERREUR] %s\n' "$message"
-            ;;
-        *)
-            printf '[INFO] %s\n' "$message"
-            ;;
-    esac
+log() {
+    printf '[%s] %s\n' "$1" "$2"
 }
 
 if [[ "${EUID}" -ne 0 ]]; then
-    ecrire_statut "ERREUR" "Ce script doit être lancé avec sudo."
-    ecrire_statut "INFO" "Exemple : sudo ./Restore-Chrome-GenAI-macOS.sh"
+    log "ERREUR" "Ce script doit être lancé avec sudo."
     exit 1
 fi
 
-mkdir -p "$REPORT_DIRECTORY"
+UTILISATEUR_REEL="${SUDO_USER:-$(logname 2>/dev/null || echo "$USER")}"
 
-ACTIONS=()
+mkdir -p "$REPORT_DIRECTORY" "$BACKUP_DIR"
+
+POLICIES=(
+    "AIModeSettings"
+    "CreateThemesSettings"
+    "DevToolsGenAiSettings"
+    "GeminiActOnWebSettings"
+    "GeminiSettings"
+    "GenAILocalFoundationalModelSettings"
+    "HelpMeWriteSettings"
+    "HistorySearchSettings"
+    "SearchContentSharingSettings"
+    "GenAiDefaultSettings"
+)
 
 if [[ -f "$POLICY_PLIST" ]]; then
+    BACKUP_PATH="$BACKUP_DIR/com.google.Chrome.plist.restore-backup-${DATE_FILE}"
+    cp "$POLICY_PLIST" "$BACKUP_PATH"
+
+    ACTIONS+=("Sauvegarde créée : $BACKUP_PATH")
+    log "OK" "Sauvegarde créée : $BACKUP_PATH"
+
     TEMP_PLIST="$(mktemp)"
+    trap 'rm -f "$TEMP_PLIST"' EXIT
+
     cp "$POLICY_PLIST" "$TEMP_PLIST"
     plutil -convert xml1 "$TEMP_PLIST"
 
-    for cle in "GenAILocalFoundationalModelSettings" "GenAiDefaultSettings"; do
+    for cle in "${POLICIES[@]}"; do
         if /usr/libexec/PlistBuddy -c "Print :${cle}" "$TEMP_PLIST" >/dev/null 2>&1; then
             /usr/libexec/PlistBuddy -c "Delete :${cle}" "$TEMP_PLIST"
-            ecrire_statut "OK" "Policy supprimée : $cle"
-            ACTIONS+=("Supprimée : $cle")
+
+            ACTIONS+=("Policy supprimée : $cle")
+            log "OK" "Policy supprimée : $cle"
         else
-            ecrire_statut "INFO" "Policy absente : $cle"
-            ACTIONS+=("Absente : $cle")
+            ACTIONS+=("Policy absente : $cle")
         fi
     done
 
     cp "$TEMP_PLIST" "$POLICY_PLIST"
     chmod 644 "$POLICY_PLIST"
     chown root:wheel "$POLICY_PLIST"
-    rm -f "$TEMP_PLIST"
+
+    ACTIONS+=("Fichier de policy mis à jour : $POLICY_PLIST")
 else
-    ecrire_statut "AVERTISSEMENT" "Fichier de policy absent : $POLICY_PLIST"
     ACTIONS+=("Fichier de policy absent : $POLICY_PLIST")
+    log "AVERTISSEMENT" "Fichier de policy absent : $POLICY_PLIST"
 fi
 
-REPORT_PATH="${REPORT_DIRECTORY}/chrome-genai-restore-report-macos.txt"
+REPORT_PATH="$REPORT_DIRECTORY/chrome-genai-restore-report-macos.txt"
 
 {
-    echo "Rapport - Restauration Chrome GenAI macOS"
+    echo "Rapport - Restauration Chrome GenAI / No-AI macOS"
     echo "Date : $DATE_NOW"
     echo
-    echo "Chemin plist :"
+    echo "Utilisateur ciblé :"
+    echo "$UTILISATEUR_REEL"
+    echo
+    echo "Fichier de policy :"
     echo "$POLICY_PLIST"
+    echo
+    echo "Policies ciblées par la restauration :"
+    printf '%s\n' "${POLICIES[@]}"
     echo
     echo "Actions effectuées :"
     printf '%s\n' "${ACTIONS[@]}"
     echo
     echo "Vérification manuelle :"
-    echo "1. Fermer toutes les fenêtres Chrome."
-    echo "2. Relancer Chrome."
+    echo "1. Fermer complètement Google Chrome."
+    echo "2. Relancer Google Chrome."
     echo "3. Aller sur chrome://policy/."
     echo "4. Cliquer sur Reload policies ou Actualiser les règles."
-    echo "5. Vérifier que GenAILocalFoundationalModelSettings n'est plus appliquée."
+    echo "5. Vérifier que les policies du projet ne sont plus appliquées."
+    echo
+    echo "Note :"
+    echo "Ce script restaure uniquement les policies Chrome appliquées par le projet."
+    echo "Il ne restaure pas les fichiers locaux supprimés, comme screen_ai ou les modèles IA."
+    echo "Si Chrome a besoin de certains composants, il pourra les retélécharger selon sa configuration et ses policies actives."
 } > "$REPORT_PATH"
 
-ecrire_statut "OK" "Rapport généré : $REPORT_PATH"
-ecrire_statut "INFO" "Redémarre Chrome puis vérifie chrome://policy/."
+chown -R "$UTILISATEUR_REEL":staff "$REPORT_DIRECTORY" "$BACKUP_DIR" 2>/dev/null || true
+
+log "OK" "Rapport généré : $REPORT_PATH"
+log "INFO" "Ferme Chrome, relance-le, puis vérifie chrome://policy/."
