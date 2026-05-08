@@ -2,29 +2,40 @@
 
 Toolkit de durcissement pour Google Chrome sur Windows, macOS et Linux.
 
-Ce projet permet de désactiver le téléchargement du modèle IA local utilisé par certaines fonctionnalités GenAI de Chrome, notamment Gemini Nano ou les modèles embarqués. Il permet aussi de désactiver plusieurs intégrations IA de Chrome via les règles locales Chrome Enterprise disponibles selon le système d'exploitation.
+Ce projet vise à réduire l'exposition aux fonctionnalités IA intégrées à Chrome en appliquant des policies Chrome Enterprise locales, en nettoyant les artefacts IA locaux connus et en documentant les comportements observés autour des composants GenAI, OptimizationGuide et Screen AI.
 
-Le projet nettoie également certains artefacts IA locaux connus, notamment les dossiers liés aux modèles GenAI / OptimizationGuide et le dossier local `screen_ai`, associé à des composants Chrome Screen AI / OCR.
+L'objectif est défensif : reprendre le contrôle sur les fonctionnalités IA côté navigateur, limiter les téléchargements automatiques non souhaités, documenter les composants locaux peu visibles et produire des rapports exploitables dans une démarche de privacy hardening.
 
-L'objectif est simple : reprendre le contrôle sur les fonctionnalités IA de Chrome, réduire les téléchargements automatiques non souhaités, limiter les intégrations IA côté navigateur, supprimer les fichiers de modèles déjà présents, nettoyer certains composants IA locaux et générer des rapports de vérification exploitables dans une démarche Privacy Hardening.
+## État actuel du projet
+
+Le projet couvre désormais quatre axes principaux :
+
+```text
+1. Application de policies Chrome Enterprise anti-IA.
+2. Nettoyage des modèles locaux GenAI / OptimizationGuide.
+3. Nettoyage et documentation du composant local screen_ai / Screen AI / OCR.
+4. Blocage expérimental de la recréation du dossier screen_ai.
+```
+
+Les scripts sont prévus pour Windows, macOS et Linux.
+
+Le blocage de persistance documenté ici concerne principalement Windows, via une règle ACL locale appliquée au dossier `screen_ai`.
 
 ## Contexte de vérification
 
-Ce projet a été testé sur une machine Windows avec Google Chrome :
+Tests réalisés sur une machine Windows avec Google Chrome :
 
 ```text
 Version 148.0.7778.97 (Build officiel) (64 bits)
 ```
 
-Suite à un approfondissement manuel des dossiers Chrome dans :
+Chemin analysé :
 
 ```text
 %LOCALAPPDATA%\Google\Chrome\User Data\
 ```
 
-un dossier local nommé `screen_ai` a été identifié.
-
-Ce dossier contient notamment des fichiers et sous-dossiers liés à Chrome Screen AI / OCR, par exemple :
+Un dossier local nommé `screen_ai` a été identifié. Il contient notamment :
 
 ```text
 _metadata
@@ -41,44 +52,151 @@ screen2x_model.tflite
 THIRD_PARTY_LICENSES
 ```
 
-## Captures de validation Screen AI
+Ces fichiers indiquent la présence d'un composant local lié à Chrome Screen AI, à l'OCR et à l'extraction du contenu principal.
+
+## Observation locale concernant screen_ai
+
+Lors d'un test local, le script de durcissement renforcé Windows a supprimé le dossier suivant :
+
+```text
+AppData\Local\Google\Chrome\User Data\screen_ai
+```
+
+Taille supprimée :
+
+```text
+106.88 Mo
+```
+
+Extrait du rapport :
+
+```text
+Supprimé : C:\Users\██████████\AppData\Local\Google\Chrome\User Data\screen_ai (106.88 Mo)
+```
+
+Après suppression manuelle ou via script, Chrome a été observé recréant le dossier `screen_ai` au prochain lancement du navigateur, avec un identifiant ou numéro de version différent.
+
+Cette observation suggère que `screen_ai` peut être géré comme un composant local récupérable ou réinstallable automatiquement par Chrome, probablement via son mécanisme interne de composants ou de mise à jour.
+
+La suppression seule ne suffit donc pas forcément à empêcher son retour.
+
+## Fenêtre temporelle suspectée
+
+D'après les éléments observés localement, la persistance ou l'installation de `screen_ai` semble avoir eu lieu dans une fenêtre comprise entre les mises à jour Chrome du :
+
+```text
+2 avril 2026
+20 avril 2026
+```
+
+Cette période reste une hypothèse de travail basée sur les timestamps et les éléments visibles sur la machine analysée.
+
+Un point particulièrement déroutant est que l'heure indiquée dans les éléments de persistance de `screen_ai` correspondrait à un moment où la machine était éteinte et donc hors connexion, selon l'observation locale.
+
+Ce point ne permet pas, à lui seul, de conclure définitivement au moment exact de l'installation. Certains timestamps peuvent être hérités d'une archive, d'un manifeste, d'un composant téléchargé, d'une extraction différée, d'une mise à jour ou d'un mécanisme interne de Chrome.
+
+Cependant, l'observation reste importante à documenter, car elle renforce le problème principal du projet : un composant local sensible, capable d'OCR et d'extraction de contenu, peut apparaître dans le profil Chrome sans consentement utilisateurice clair, explicite et compréhensible dans l'interface classique du navigateur.
+
+Cette situation est interprétée ici comme une atteinte au contrôle utilisateurice et comme un problème de transparence autour du consentement, surtout lorsque le composant est recréé après suppression.
+
+## Persistance de screen_ai
+
+L'analyse du code `ScreenAIInstallState` montre que Screen AI dispose d'une logique d'installation dédiée côté navigateur.
+
+Le comportement observé est cohérent avec cette logique :
+
+```text
+- un client interne peut indiquer que Screen AI est nécessaire.
+- Chrome met à jour une date de dernière utilisation.
+- Chrome peut déclencher DownloadComponent().
+- si les fonctionnalités OCR ou Main Content Extraction sont actives, Chrome peut tenter de récupérer le composant.
+- une nouvelle version peut être téléchargée alors qu'une ancienne existe déjà.
+- la nouvelle version peut être utilisée après redémarrage du navigateur.
+```
+
+Le point sensible n'est donc pas seulement la capacité OCR de Screen AI, mais sa gestion comme composant récupérable par Chrome.
+
+Sans interface claire permettant à l'utilisateurice de comprendre, refuser ou désactiver durablement ce comportement, cela pose un problème de transparence et de contrôle.
+
+## Blocage actuel de la persistance
+
+À l'heure actuelle, la persistance de `screen_ai` a été coupée localement via une règle simple dans un script PowerShell :
+
+```powershell
+if ($BlockRecreation) {
+    Bloquer-RecreationScreenAI -Actions $Actions
+}
+```
+
+Cette option est activée avec :
+
+```powershell
+-BlockRecreation
+```
+
+Principe du blocage :
+
+```text
+1. supprimer le dossier screen_ai existant.
+2. recréer un dossier screen_ai vide.
+3. modifier les ACL Windows du dossier.
+4. retirer l'écriture au compte utilisateurice courant.
+5. conserver des droits administrateurice/SYSTEM.
+```
+
+L'objectif est d'empêcher Chrome, lancé dans le contexte utilisateurice, de réécrire ou recréer librement le contenu du dossier `screen_ai`.
+
+Exemple d'exécution :
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\Disable-Chrome-ScreenAI-Hardening.ps1 -ForceCloseChrome -BlockRecreation
+```
+
+Pour retirer ce blocage :
+
+```powershell
+.\Disable-Chrome-ScreenAI-Hardening.ps1 -UnblockRecreation
+```
+
+Important : ce blocage est expérimental. Il ne doit pas être présenté comme une garantie absolue. Il coupe la persistance observée en bloquant l'écriture sur le chemin connu, mais Chrome ou Google peuvent modifier les chemins, les mécanismes de téléchargement ou le comportement du composant dans de futures versions (Pour le moment je met pas à disposition le script).
+
+Par prudence, le code de blocage ACL peut être conservé comme outil personnel de recherche et ne pas être publié directement, le but est d'éviter une mauvaise utilisation ou des effets de bord chez d'autres utilisateurices.
+
+## Captures de validation
 
 ### Contenu du dossier screen_ai
 
-La capture suivante montre les fichiers présents dans le dossier `screen_ai`.
-
+```md
 ![Contenu du dossier screen_ai](docs/screenshots/screenai-evidence-1.png)
+![Contenu du dossier screen_ai recréé](docs/screenshots/screenai-evidence-3.png)
+```
+![Contenu du dossier screen_ai recréé](docs/screenshots/screenai-evidence-1.png)
+![Contenu du dossier screen_ai recréé](docs/screenshots/screenai-evidence-3.png)
 
-### README Chrome Screen AI
+### README local Chrome Screen AI
 
-La capture suivante montre le contenu du fichier `README.md` présent dans le dossier `screen_ai`.
+Le fichier README présent dans le composant indique que Chrome Screen AI fournit deux fonctionnalités locales pour Chrome et ChromeOS :
 
-![README Chrome Screen AI](docs/screenshots/screenai-evidence-2.png)
+![Contenu du dossier screen_ai recréé](docs/screenshots/screenai-evidence-2.png)
 
-Le fichier `README.md` indique que la bibliothèque Chrome Screen AI fournit deux fonctionnalités locales pour Chrome et ChromeOS :
 
 ```text
 Main Content Extraction
 Optical Character Recognition
 ```
 
-Le README précise également que ces fonctionnalités sont exécutées entièrement sur l'appareil et ne sont pas envoyées au réseau ni stockées sur disque selon ce document.
+Il indique également que ces fonctionnalités sont exécutées entièrement sur l'appareil.
 
 ## Disclaimer concernant screen_ai
 
-Le dossier `screen_ai` n'a pas été découvert au départ via l'article ayant motivé ce projet. Il a été repéré ensuite, lors d'une analyse plus poussée du dossier :
+Le dossier `screen_ai` n'a pas été découvert initialement via l'article ayant motivé ce projet. Il a été identifié ensuite, lors d'une analyse plus poussée du profil utilisateur Chrome.
 
-```text
-%LOCALAPPDATA%\Google\Chrome\User Data\
-```
+Ce composant ne semble pas être exactement le même élément que le modèle Gemini Nano / GenAI évoqué dans l'article de départ. Il semble plutôt lié à Chrome Screen AI, à l'OCR et à l'extraction du contenu principal.
 
-Ce composant ne semble pas être exactement le même élément que le modèle Gemini Nano / GenAI évoqué dans l'article de départ. Il semble plutôt lié à Chrome Screen AI, à l'OCR et à l'extraction de contenu principal.
+Tout le monde n'aura pas forcément ce dossier. Sa présence peut dépendre de la version de Chrome, du canal utilisé, des fonctionnalités activées, des flags expérimentaux, des tests progressifs côté Google, du profil utilisateurice et de l'historique d'utilisation.
 
-Cependant, il reste pertinent dans le cadre de ce projet, car il s'agit d'un autre composant local lié à des fonctionnalités d'analyse automatique présentes dans Chrome.
-
-Point important : tout le monde n'aura pas forcément ce dossier. Certaines personnes peuvent avoir un dossier `screen_ai`, tandis que d'autres non. Sa présence peut dépendre de plusieurs facteurs, notamment la version de Chrome utilisée, le canal installé, les fonctionnalités activées, les flags expérimentaux, les tests progressifs côté Google, le profil utilisateurice et l'historique d'utilisation.
-
-Les canaux Chrome pouvant présenter des différences sont notamment :
+Canaux Chrome susceptibles de différer :
 
 ```text
 Stable
@@ -88,103 +206,98 @@ Dev
 Canary
 ```
 
-La question reste donc légitime : pourquoi ce type de composant local est-il aussi peu visible pour l'utilisateurice ? Quel est le niveau réel de consentement, de transparence et de contrôle offert autour de ces fonctionnalités ?
+Ce projet ne prétend pas démontrer que Chrome analyse l'écran de l'utilisateurice en permanence. Il documente un composant local capable d'OCR et d'extraction de contenu, peu visible dans l'interface classique du navigateur, et potentiellement recréé automatiquement après suppression.
 
-Ce projet ne prétend pas démontrer une intention malveillante. Il documente une observation locale, propose un durcissement défensif, et laisse la question ouverte.
-
-Affaire à suivre.
-
-## Pourquoi ce projet existe
-
-Ce projet a été créé après la lecture de l'article suivant :
-
-https://www.thatprivacyguy.com/blog/chrome-silent-nano-install/
-
-L'article explique que Chrome peut télécharger localement un modèle IA de grande taille lié à Gemini Nano / GenAI. Ce dépôt propose une réponse défensive, documentée et réversible : utiliser les policies Chrome Enterprise disponibles localement pour empêcher le téléchargement du modèle local, puis nettoyer les artefacts déjà présents.
-
-Le projet a ensuite été étendu pour désactiver d'autres fonctionnalités IA intégrées à Chrome, comme Gemini, AI Mode, Help Me Write, History Search, Create Themes, DevTools GenAI et certaines fonctions de partage de contenu avec les services IA.
-
-Il a aussi été étendu pour nettoyer `screen_ai`, suite à l'analyse locale du profil Chrome.
-
-Ce projet ne cherche pas à modifier Chrome ni à contourner ses protections. Il applique uniquement des règles de configuration administrateurice et supprime des artefacts locaux connus.
-
-## Objectifs du projet
-
-Ce toolkit permet de :
-
-- Désactiver le téléchargement du modèle IA local GenAI / Gemini Nano de Chrome.
-- Désactiver plusieurs fonctionnalités IA intégrées à Chrome.
-- Appliquer des policies Chrome Enterprise selon le système utilisé.
-- Supprimer les dossiers locaux liés aux modèles IA déjà téléchargés.
-- Supprimer les dossiers locaux liés à `screen_ai` / Screen AI / OCR lorsqu'ils existent.
-- Nettoyer certaines anciennes règles pouvant provoquer des erreurs dans `chrome://policy/`.
-- Générer des rapports de vérification.
-- Créer des sauvegardes avant certaines modifications.
-- Fournir une base propre pour l'audit, le hardening et la documentation sécurité.
-
-## Systèmes supportés
+Le problème principal est donc :
 
 ```text
-Windows
-macOS
-Linux
+transparence faible + consentement flou + contrôle utilisateurice limité + persistance
 ```
 
-Chaque système utilise une méthode différente pour appliquer les policies Chrome.
+## Analyse du code source Chromium
+
+Le code source Chromium lié à Screen AI se trouve dans :
 
 ```text
-Windows : registre Windows
-macOS   : fichier plist
-Linux   : fichier JSON de policies managed
+services/screen_ai/
+chrome/browser/screen_ai/
 ```
 
-## Avertissement
-
-Ce projet est destiné au durcissement de la vie privée, à l'administration système et à un usage défensif.
-
-Il ne modifie pas les binaires de Chrome, ne contourne pas de mécanisme de sécurité et n'effectue aucune action offensive.
-
-Les scripts appliquent uniquement des règles locales Chrome Enterprise et suppriment des fichiers de modèle locaux lorsque ceux-ci sont présents.
-
-Utilise ces scripts uniquement sur une machine dont tu es propriétaire ou que tu es autorisé à administrer.
-
-## Arborescence recommandée
+Liens :
 
 ```text
-chrome-genai-hardening/
-├── README.md
-├── README_en.md
-├── LICENSE
-├── .gitignore
-├── scripts/
-│   ├── windows/
-│   │   ├── Disable-Chrome-GenAI.ps1
-│   │   ├── Disable-Chrome-AI-Features.ps1
-│   │   └── Restore-Chrome-GenAI.ps1
-│   ├── macos/
-│   │   ├── Disable-Chrome-GenAI-macOS.sh
-│   │   ├── Disable-Chrome-AI-Features-macOS.sh
-│   │   └── Restore-Chrome-GenAI-macOS.sh
-│   └── linux/
-│       ├── Disable-Chrome-GenAI-linux.sh
-│       ├── Disable-Chrome-AI-Features-linux.sh
-│       └── Restore-Chrome-GenAI-linux.sh
-├── docs/
-│   ├── policy-explanation.md
-│   ├── policy-explanation_en.md
-│   └── screenshots/
-│       ├── screenai-evidence-1.png
-│       └── screenai-evidence-2.png
-├── reports/
-│   └── example-report.md
-└── backups/
+https://source.chromium.org/chromium/chromium/src/+/main:services/screen_ai/
+https://source.chromium.org/chromium/chromium/src/+/main:chrome/browser/screen_ai/
 ```
 
-## Scripts disponibles
+Éléments analysés :
+
+```text
+ScreenAILibraryWrapper
+ScreenAILibraryWrapperImpl
+ScreenAILibraryWrapperFake
+ScreenAIService
+ScreenAIInstallState
+screen_ai_service_impl
+screen_ai_ocr_perf_test
+BUILD.gn
+include_rules
+OWNERS / chromium-accessibility
+```
+
+L'analyse montre que Chromium dispose d'une architecture permettant de :
+
+```text
+- charger une bibliothèque locale Screen AI depuis le disque.
+- fournir à cette bibliothèque des fichiers de modèles.
+- initialiser un pipeline OCR.
+- exécuter OCR sur des images.
+- extraire le contenu principal d'une page.
+- manipuler des arbres d'accessibilité.
+- utiliser des annotations visuelles via protobuf.
+- enregistrer des métriques d'usage et de performance.
+- utiliser une sandbox sur certains systèmes.
+- fonctionner avec une vraie implémentation ou une version fake de test.
+- gérer l'installation ou la récupération du composant Screen AI.
+```
+
+## Ce que l'analyse confirme
+
+L'analyse confirme que `screen_ai` n'est pas un simple dossier passif.
+
+Le composant est lié à une architecture Chromium capable de :
+
+```text
+- charger une bibliothèque native locale.
+- utiliser des fichiers de modèle et de configuration.
+- traiter des images via OCR.
+- retourner des annotations visuelles.
+- analyser un arbre d'accessibilité.
+- identifier le contenu principal d'une page.
+- servir plusieurs clients internes.
+- être récupéré ou réinstallé selon l'état interne de Chrome (via leurs propres décisions).
+```
+
+Clients internes mentionnés dans le code :
+
+```text
+PDF Viewer
+Local Search
+Camera App
+Media App
+Screenshot Text Detection
+Tests
+```
+
+## Ce que l'analyse ne prouve pas
+
+Les éléments analysés ne prouvent pas que Chrome analyse l'écran de l'utilisateurice en permanence.
+
+Ils confirment plutôt que Chromium dispose d'un service local capable d'utiliser Screen AI à la demande, lorsque certaines fonctionnalités internes le déclenchent (Sans le consentement utilisateurice).
+
+## Modes de durcissement
 
 ### Mode ciblé
-
-Le mode ciblé désactive principalement le modèle IA local GenAI / Gemini Nano.
 
 Scripts concernés :
 
@@ -194,22 +307,13 @@ scripts/macos/Disable-Chrome-GenAI-macOS.sh
 scripts/linux/Disable-Chrome-GenAI-linux.sh
 ```
 
-Policy principale appliquée :
+Policy principale :
 
 ```text
 GenAILocalFoundationalModelSettings = 1
 ```
 
-Le mode ciblé nettoie également les artefacts locaux connus :
-
-```text
-GenAI / OptimizationGuide
-screen_ai / Screen AI / OCR local
-```
-
 ### Mode renforcé
-
-Le mode renforcé désactive un maximum de fonctionnalités IA intégrées à Chrome côté navigateur.
 
 Scripts concernés :
 
@@ -219,7 +323,7 @@ scripts/macos/Disable-Chrome-AI-Features-macOS.sh
 scripts/linux/Disable-Chrome-AI-Features-linux.sh
 ```
 
-Policies appliquées par le mode renforcé :
+Policies appliquées :
 
 ```text
 AIModeSettings                       = 1
@@ -233,26 +337,73 @@ HistorySearchSettings                = 2
 SearchContentSharingSettings         = 1
 ```
 
-Le mode renforcé nettoie également les artefacts locaux connus :
+La règle suivante n'est pas utilisée volontairement :
 
 ```text
-GenAI / OptimizationGuide
-screen_ai / Screen AI / OCR local
+GenAiDefaultSettings
 ```
 
-### Mode restauration
+### Mode Screen AI Hardening
 
-Le mode restauration supprime les policies appliquées par le projet afin de revenir au comportement par défaut de Chrome.
+Script concerné :
 
-Important : les scripts de restauration restaurent uniquement les policies Chrome appliquées par le projet. Ils ne restaurent pas les fichiers locaux supprimés, comme `screen_ai` ou les modèles IA.
+```text
+scripts/windows/Disable-Chrome-ScreenAI-Hardening.ps1
+```
 
-## Utilisation rapide
+Options importantes :
+
+```text
+-ForceCloseChrome
+-BlockRecreation
+-UnblockRecreation
+-WhatIf
+```
+
+## Script Screen AI Hardening
+
+Le script `Disable-Chrome-ScreenAI-Hardening.ps1` agit sur plusieurs leviers :
+
+```text
+- application des policies IA connues.
+- sauvegarde des policies Chrome existantes.
+- fermeture optionnelle de Chrome.
+- nettoyage du dossier screen_ai.
+- nettoyage de la préférence locale accessibility.screen_ai.last_used_time.
+- blocage optionnel de la recréation via ACL Windows.
+```
+
+La logique de blocage de persistance repose sur ce bloc :
+
+```powershell
+if ($BlockRecreation) {
+    Bloquer-RecreationScreenAI -Actions $Actions
+}
+```
+
+Le blocage est appliqué uniquement si l'option `-BlockRecreation` est utilisée.
+
+## Utilisation
 
 ### Windows
+
+PowerShell en administrateurice :
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\windows\Disable-Chrome-AI-Features.ps1
+```
+
+Durcissement Screen AI avec blocage de recréation :
+
+```powershell
+.\scripts\windows\Disable-Chrome-ScreenAI-Hardening.ps1 -ForceCloseChrome -BlockRecreation
+```
+
+Retirer le blocage :
+
+```powershell
+.\scripts\windows\Disable-Chrome-ScreenAI-Hardening.ps1 -UnblockRecreation
 ```
 
 ### macOS
@@ -270,126 +421,89 @@ chmod +x scripts/linux/Disable-Chrome-AI-Features-linux.sh
 sudo ./scripts/linux/Disable-Chrome-AI-Features-linux.sh
 ```
 
-Après exécution, ferme complètement Chrome puis relance-le.
+## Vérification
 
-## Vérification dans Chrome
+### chrome://policy
 
-Après l'exécution du script, ouvre Chrome et va sur :
+Ouvre :
 
 ```text
 chrome://policy/
 ```
 
-Clique ensuite sur :
+Clique sur `Reload policies`.
+
+Résultat attendu :
 
 ```text
-Reload policies
+AIModeSettings                       1    OK
+CreateThemesSettings                 2    OK
+DevToolsGenAiSettings                2    OK
+GeminiActOnWebSettings               1    OK
+GeminiSettings                       1    OK
+GenAILocalFoundationalModelSettings  1    OK
+HelpMeWriteSettings                  2    OK
+HistorySearchSettings                2    OK
+SearchContentSharingSettings         1    OK
 ```
 
-ou :
+### screen_ai
+
+Chemin Windows principal :
 
 ```text
-Actualiser les règles
+%LOCALAPPDATA%\Google\Chrome\User Data\screen_ai
 ```
 
-Tu dois voir les policies du mode renforcé avec l'état `OK`.
+## Analyse avec Procmon
 
-Tu ne dois plus voir :
+Filtres recommandés :
 
 ```text
-GenAiDefaultSettings
+Process Name is chrome.exe
+Path contains screen_ai
+Operation is CreateFile
+Operation is WriteFile
+Operation is SetBasicInformationFile
+Operation is CreateFileMapping
 ```
 
-## Vérification du modèle local
-
-Tu peux aussi vérifier l'état du modèle local via :
+Objectif :
 
 ```text
-chrome://on-device-internals/
-```
-
-Après application du script, le modèle local peut apparaître comme :
-
-```text
-Foundational model state: Not Eligible
-Folder size: 0 MiB
-enabled by enterprise policy: false
-```
-
-## Vérification de screen_ai
-
-Après application du script, tu peux vérifier que le dossier `screen_ai` n'est plus présent dans le profil Chrome.
-
-Chemins principaux :
-
-```text
-Windows : %LOCALAPPDATA%\Google\Chrome\User Data\screen_ai
-macOS   : ~/Library/Application Support/Google/Chrome/User Data/screen_ai
-Linux   : ~/.config/google-chrome/User Data/screen_ai
-```
-
-Selon la version de Chrome, d'autres chemins proches peuvent exister. Les scripts vérifient plusieurs chemins possibles.
-
-## Rapports et sauvegardes
-
-Les scripts génèrent des rapports dans :
-
-```text
-./reports/
-```
-
-Les scripts peuvent générer des sauvegardes dans :
-
-```text
-./backups/
+- identifier le processus qui recrée le dossier.
+- identifier le moment exact de recréation.
+- identifier les fichiers écrits.
+- vérifier si la recréation intervient au lancement du navigateur.
+- chercher une méthode propre pour empêcher sa réinstallation.
 ```
 
 ## Limites
 
-Ce projet réduit fortement les fonctionnalités IA intégrées à Chrome côté navigateur, mais il ne peut pas garantir un blocage total de tous les contenus IA côté serveur.
+Ce projet réduit fortement les fonctionnalités IA intégrées à Chrome côté navigateur, mais il ne peut pas garantir le blocage total de tous les contenus IA côté serveur.
 
-Par exemple :
-
-- Une page web peut afficher du contenu généré par IA.
-- Un moteur de recherche peut afficher des résultats ou résumés IA côté serveur.
-- Une extension installée peut utiliser ses propres fonctionnalités IA.
-- Google peut modifier ou ajouter des policies dans de futures versions de Chrome.
-- Certaines policies peuvent dépendre de la version de Chrome installée.
-- `screen_ai` peut être retéléchargé par Chrome si une fonctionnalité ou une configuration active le redéclenche.
-- Le dossier `screen_ai` peut être présent chez certaines personnes et absent chez d'autres selon le canal Chrome, la version, les flags, les tests progressifs ou l'usage local.
-
-Ce projet ne remplace pas une configuration complète de confidentialité du navigateur.
-
-## Vérifications recommandées
-
-Après l'exécution, vérifie :
+Limites connues :
 
 ```text
-chrome://policy/
-chrome://on-device-internals/
-chrome://flags/
-```
-
-Dans `chrome://flags/`, tu peux rechercher manuellement :
-
-```text
-Gemini
-GenAI
-Nano
-Prompt API
-Summarization
-Writer
-Rewriter
-Proofreader
-Screen AI
-OCR
+- une page web peut afficher du contenu généré par IA.
+- un moteur de recherche peut afficher des résultats IA côté serveur.
+- une extension peut utiliser ses propres fonctionnalités IA.
+- Google peut modifier ou ajouter des policies dans de futures versions.
+- certaines policies peuvent dépendre de la version de Chrome installée.
+- screen_ai peut être recréé ou retéléchargé si Chrome le juge nécessaire.
+- le blocage ACL est expérimental et dépend du chemin actuellement observé.
+- les timestamps observés ne suffisent pas toujours à prouver l'heure exacte de téléchargement ou d'extraction.
 ```
 
 ## Sources
 
-- Article ayant motivé le projet : https://www.thatprivacyguy.com/blog/chrome-silent-nano-install/
-- Documentation Chrome Enterprise Policies : https://chromeenterprise.google/policies/
-- Documentation Chrome Built-in AI : https://developer.chrome.com/docs/ai/
+```text
+https://www.thatprivacyguy.com/blog/chrome-silent-nano-install/
+https://chromeenterprise.google/policies/
+https://developer.chrome.com/docs/ai/
+https://source.chromium.org/chromium/chromium/src/+/main:services/screen_ai/
+https://source.chromium.org/chromium/chromium/src/+/main:chrome/browser/screen_ai/
+```
 
 ## Licence
 
@@ -406,5 +520,8 @@ But      : désactiver les fonctionnalités IA intégrées à Chrome
 Systèmes : Windows, macOS, Linux
 Langages : PowerShell, Bash
 Niveau   : Privacy Hardening
-Action   : policies locales + suppression des modèles locaux + screen_ai + rapports
+Action   : policies locales + suppression des modèles locaux + screen_ai + blocage ACL optionnel
+Constat  : screen_ai peut être recréé automatiquement après suppression
+Fenêtre  : persistance suspectée entre les mises à jour du 2 avril 2026 et du 20 avril 2026
+État     : persistance de screen_ia coupée le 08 Mai 2026 via -BlockRecreation
 ```
