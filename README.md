@@ -523,5 +523,5 @@ Niveau   : Privacy Hardening
 Action   : policies locales + suppression des modèles locaux + screen_ai + blocage ACL optionnel
 Constat  : screen_ai peut être recréé automatiquement après suppression
 Fenêtre  : persistance suspectée entre les mises à jour du 2 avril 2026 et du 20 avril 2026
-État     : persistance de screen_ia coupée le 08 Mai 2026 via -BlockRecreation
+État  [Surveillance]   : persistance de screen_ia coupée le 08 Mai 2026 via -BlockRecreation
 ```
